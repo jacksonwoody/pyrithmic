@@ -4,19 +4,19 @@ with open('README.md', 'r', encoding='utf-8') as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='example_pypi_package',
-    author='Tom Chen',
-    author_email='tomchen.org@gmail.com',
-    description='Example PyPI (Python Package Index) Package',
-    keywords='example, pypi, package',
+    name='pyrithmic',
+    author='Jack Woodhead',
+    author_email='jack.woodhead@pm.me',
+    description='Python API Integration with Rithmic Protocol Buffer API',
+    keywords='python rithmic',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/tomchen/example_pypi_package',
     project_urls={
-        'Documentation': 'https://github.com/tomchen/example_pypi_package',
+        'Documentation': 'https://github.com/jacksonwoody/pyrithmic',
         'Bug Reports':
-        'https://github.com/tomchen/example_pypi_package/issues',
-        'Source Code': 'https://github.com/tomchen/example_pypi_package',
+        'https://github.com/jacksonwoody/pyrithmic/issues',
+        'Source Code': 'https://github.com/jacksonwoody/pyrithmic',
         # 'Funding': '',
         # 'Say Thanks!': '',
     },
@@ -46,8 +46,8 @@ setuptools.setup(
     },
     # entry_points={
     #     'console_scripts': [  # This can provide executable scripts
-    #         'run=examplepy:main',
-    # You can execute `run` in bash to run `main()` in src/examplepy/__init__.py
+    #         'run=config:main',
+    # You can execute `run` in bash to run `main()` in src/config/__init__.py
     #     ],
     # },
 )

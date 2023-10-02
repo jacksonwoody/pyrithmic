@@ -1,6 +1,6 @@
 import unittest
 
-from examplepy.module1 import Number
+from rithmic.config import Number
 
 
 class TestSimple(unittest.TestCase):
