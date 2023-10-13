@@ -3,9 +3,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from rithmic import RithmicEnvironment
 from rithmic.interfaces.base import RithmicBaseApi
-from rithmic.interfaces.order import RithmicOrderApi
-from rithmic.interfaces.ticker import RithmicTickerApi
+from rithmic import RithmicOrderApi
+from rithmic import RithmicTickerApi
 
 
 def set_ws_messages(ws_mock, send_msgs, recv_msgs):

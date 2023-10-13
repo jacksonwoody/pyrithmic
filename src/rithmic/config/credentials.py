@@ -3,6 +3,7 @@ import os
 from configparser import ConfigParser
 from pathlib import Path
 
+from rithmic.tools.general import get_credentials_path
 from rithmic.tools.pyrithmic_exceptions import EnvironmentNotConfiguredException, ConfigFileNotFoundException
 
 ENVIRONMENT_MAP = dict(
@@ -25,7 +26,8 @@ def _get_config_file(environment: RithmicEnvironment):
         raise EnvironmentNotConfiguredException('Environment {0} is not configured, available options: {1}'.format(
             environment, ', '.join(ENVIRONMENT_MAP.keys())
         ))
-    config_file = PATH_PROJECT_ROOT.joinpath('config', 'envs', '{0}.ini'.format(environment))
+    path = get_credentials_path()
+    config_file = path / '{0}.ini'.format(environment)
     if config_file.exists() is False:
         raise ConfigFileNotFoundException('No Config File found at {0}'.format(config_file))
     return config_file
@@ -41,7 +43,3 @@ def get_rithmic_credentials(environment: RithmicEnvironment = None):
     parser = ConfigParser()
     parser.read(_get_config_file(environment))
     return dict(parser.items('credentials'))
-
-
-if __name__ == '__main__':
-    print(get_rithmic_credentials(RithmicEnvironment.RITHMIC_TEST))

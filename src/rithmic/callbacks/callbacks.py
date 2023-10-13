@@ -5,27 +5,49 @@ from rithmic.tools.pyrithmic_exceptions import CallbackIdNotFoundException
 
 
 class CallbackId(enum.Enum):
-    LAST_TRADE = 150
-    # Callback for Last Trade processed in TICKER plant, argument is a dictionary of tick data
+    TICKER_LAST_TRADE = 150
+    # Callback for Last Trade processed in TICKER plant, argument is a dictionary of live tick data
 
-    PERIODIC_TICK_DATA_SYNCING = 901
-    # Callback for Periodic Syncing in TICKER plant, argument is a pandas DataFrame containing latest tick data
+    TICKER_PERIODIC_LIVE_TICK_DATA_SYNCING = 901
+    # Callback for Periodic Syncing in TICKER plant, arguments are a pandas DataFrame containing latest tick data
+    # and the security and exchange codes for the latest data
 
-    RITHMIC_NOTIFICATIONS = 351
-    # Callback to process notifications that stream from Rithmic
+    ORDER_RITHMIC_NOTIFICATIONS = 351
+    # Callback to process notifications that stream from Rithmic in ORDER plant
 
-    EXCHANGE_NOTIFICATIONS = 352
-    # Callback to process notifications that stream from the Exchange
+    ORDER_EXCHANGE_NOTIFICATIONS = 352
+    # Callback to process notifications that stream from the Exchange in ORDER plant
+
+    HISTORY_DOWNLOAD_INTERMITTENT_PROCESSING = 902
+    # Callback for Replay Tick Data as intermittent 10,000 rows of data are processed, can process this data
+    # Takes two arguments, DataFrame of tick data and DownloadRequest object for all metadata
+
+    HISTORY_DOWNLOAD_COMPLETE_PROCESSING = 903
+    # Callback for Replay Tick Data once all records are returned
+    # Takes two arguments, DataFrame of tick data and DownloadRequest object for all metadata
+
+
 
 
 VALID_CALLBACK_IDS = [e.value for e in CallbackId]
 
 
 class CallbackManager:
+    """
+    Callback Manager is used to register callbacks for different apis as updates flow from the exchange
+
+    Eg Usage, callback for streaming tick data to process each row received:
+        my_callback_fn = lambda row: print(row)
+        cbm = CallbackManager()
+        cbm.register_callback(CallbackId.TICKER_LAST_TRADE, my_callback_fn)
+
+        api = RithmicTickerApi(callback_manager=cbm)
+    """
     def __init__(self):
+        """Init method sets mapping for callbacks"""
         self.callback_mapping = dict()
 
-    def register_callback(self, callback_id: CallbackId, func: Callable):
+    def register_callback(self, callback_id: CallbackId, func: Callable) -> None:
         """
         Set a callback to be run on an async call in the interfaces
 
@@ -38,7 +60,7 @@ class CallbackManager:
             raise CallbackIdNotFoundException(f'Callback ID {callback_id} is not found, valid ids: {valid_str}')
         self.callback_mapping[callback_id] = func
 
-    def register_callbacks(self, callback_mapping: dict):
+    def register_callbacks(self, callback_mapping: dict) -> None:
         """
         Convenience method to map multiple callbacks, provide dict of ID to callback func/method
 

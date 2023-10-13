@@ -1,34 +1,199 @@
-# Example PyPI (Python Package Index) Package & Tutorial / Instruction / Workflow for 2021
+# Python Rithmic API
 
-[![PyPI package](https://img.shields.io/badge/pip%20install-example--pypi--package-brightgreen)](https://pypi.org/project/example-pypi-package/) [![version number](https://img.shields.io/pypi/v/example-pypi-package?color=green&label=version)](https://github.com/tomchen/example_pypi_package/releases) [![Actions Status](https://github.com/tomchen/example_pypi_package/workflows/Test/badge.svg)](https://github.com/tomchen/example_pypi_package/actions) [![License](https://img.shields.io/github/license/tomchen/example_pypi_package)](https://github.com/tomchen/example_pypi_package/blob/main/LICENSE)
+[![PyPI package](https://img.shields.io/badge/pip%20install-example--pypi--package-brightgreen)](https://pypi.org/project/example-pypi-package/) [![version number](https://img.shields.io/pypi/v/example-pypi-package?color=green&label=version)](https://github.com/tomchen/example_pypi_package/releases) [![License](https://img.shields.io/github/license/tomchen/example_pypi_package)](https://github.com/tomchen/example_pypi_package/blob/main/LICENSE)
 
-This is an example [PyPI](https://pypi.org/) (Python Package Index) package set up with automated tests and package publishing workflow using GitHub Actions CI/CD. It is made primarily for GitHub + VS Code (Windows / Mac / Linux) users who are about to write and publish their first PyPI package. The package could serve as a starter / boilerplate / demo and the tutorial could give you a quick and concise explaination to solve some small but annoying problems you might encounter, such as package / module name confusion, and VS Code test configuration issues.
+Python API to interface with the Rithmic Protocol Buffer API: https://yyy3.rithmic.com/?page_id=9
 
-<details><summary><strong>Differences from pypa/sampleproject (click to show/hide)</strong></summary>
+Provides access to Tick Market Data (Live and Historical) and Order Routing to Execution Brokers.
 
-This example package is inspired by / based on the [official sample project pypa/sampleproject](https://github.com/pypa/sampleproject), but this package:
+## Credentials
+Contact Rithmic to setup access to Rithmic Test and Rithmic Paper Trading environments.
 
-- is a simplified version of pypa/sampleproject (and the [official Python Packaging User Guide](https://packaging.python.org/))
-- uses GitHub Actions for both testing and publishing, instead of Travis CI
-- is tested when pushing `master` or `main` branch, and is published when create a release
-- includes test files in the source distribution
-- uses **setup.cfg** for [version single-sourcing](https://packaging.python.org/guides/single-sourcing-package-version/) (setuptools 46.4.0+)
-- has **.vscode\settings.json** and **vscode.env** which adds **src/** folder to `PYTHONPATH`, so that test files don't have linting errors and may run with pytest in VS Code
-- does not use flake8 for automated linting - it is sometimes too strict and inflexible, you may use pylint locally instead
-- has this tutorial that covers everything you need to know in one page. Everything that might not be very useful, is hidden in collapsible sections that you can click to show
-- has **[.editorconfig](https://editorconfig.org/#download)** file
+Once you have log in credentials, create local copies for each environment based off the file RITHMIC_CREDENTIALS_SKELETON.ini located in src/rithmic/config/envs
 
-</details>
+Each environment will need a local ini file with your credentials, currently available are RITHMIC_PAPER_TRADING.ini and RITHMIC_TEST.ini
 
-## Make necessary changes
+You will need an Environment Variable with key RITHMIC_CREDENTIALS_PATH and value the path to the local folder where you have created your environment ini files
 
-### Use as a template
+You will need to switch on Market Data for exchanges you require (eg CME) for Access to Ticker data in RITHMIC_PAPER_TRADING. 
 
-[![Use the template](https://img.shields.io/static/v1?label=&message=Click%20here%20to%20use%20this%20package%20as%20a%20template%20to%20start%20a%20new%20repo%20on%20GitHub&color=brightgreen&style=for-the-badge)](https://github.com/tomchen/example_pypi_package/generate)
+## Tick Data API
 
-(Click the above button to use this example package as a template for your new GitHub repo, this will initialize a new repository and my commits will not be in your git history)
+### Streaming Live Tick Data
 
-(If you do not use GitHub, you can [download the archive of the example package](https://github.com/tomchen/example_pypi_package/archive/main.zip))
+To stream market data for ESZ3 and NQZ3 on CME as a long running process:
+
+```python
+import time
+
+from rithmic import RithmicTickerApi, RithmicEnvironment
+
+
+if __name__ == '__main__':
+    api = RithmicTickerApi(env=RithmicEnvironment.RITHMIC_PAPER_TRADING, auto_connect=True)
+    es_stream = api.stream_market_data('ESZ3', 'CME')
+    nq_stream = api.stream_market_data('NQZ3', 'CME')
+    while api.total_tick_count < 500:
+        print('Streamed {0} ticks so far'.format(api.total_tick_count))
+        time.sleep(1)
+
+    df_es = es_stream.tick_dataframe
+    df_nq = es_stream.tick_dataframe
+
+    print(df_es)
+    print(df_nq)
+```
+
+You can provide your own asyncio loop when instantiating an api if you wish to use a single aysncio loop across all interfaces &/or your entire trading system.
+
+In the ticker API, calling stream_market_data returns a TickDataStream object which has a streamed_data attribute (list of ticks) and can also be accessed as a Pandas DataFrame named tick_dataframe
+
+To add your own custom callbacks to the Ticker API, you can add a callback that fires on every tick received and/or a period sync callback that runs at an interval you set upon class instantiation, this will give new tick data for each stream every n intervals you can process, save to database, etc, example below setting callbacks for both, periodic syncing at half second intervals:
+```python
+import time
+
+from pandas import DataFrame
+
+from rithmic import RithmicTickerApi, RithmicEnvironment, CallbackManager, CallbackId
+
+
+if __name__ == '__main__':
+    cbm = CallbackManager()
+    
+    def tick_data_update(data: dict):
+        volume = data['volume']
+        if volume > 2:
+            print(data)
+
+    def period_sync_callback(df: DataFrame, security_code: str, exchange_code: str):
+        print('{0} New Records to process on {1}|{2}'.format(len(df), security_code, exchange_code))
+
+    cbm.register_callback(CallbackId.TICKER_LAST_TRADE, tick_data_update)
+    cbm.register_callback(CallbackId.TICKER_PERIODIC_LIVE_TICK_DATA_SYNCING, period_sync_callback)
+
+    api = RithmicTickerApi(
+        env=RithmicEnvironment.RITHMIC_PAPER_TRADING,
+        callback_manager=cbm,
+        periodic_sync_interval_seconds=0.5
+    )
+    es_stream = api.stream_market_data('ESZ3', 'CME')
+    nq_stream = api.stream_market_data('NQZ3', 'CME')
+    complete = False
+    while not complete:
+        time.sleep(1)
+        complete = api.total_tick_count == 500
+```
+
+## Order API
+
+### Basics
+
+All orders/cancels/modifications are placed asynchronously then their status is updated as updates from the exchange flow into the API. All order_id strings provided need to be unique to a session to track updates back from the exchange, suggest using a database primary or dateetime based string for example
+
+#### Placing a Market Order:
+
+As a market order will be filled immediately, this script will submit the order and receive a fill straight away
+
+```python
+from datetime import datetime as dt
+import time
+
+from rithmic import RithmicOrderApi, RithmicEnvironment
+from rithmic.interfaces.order.order_types import FillStatus
+
+
+if __name__ == '__main__':
+    api = RithmicOrderApi(env=RithmicEnvironment.RITHMIC_PAPER_TRADING)
+    order_id = '{0}_mkt_order'.format(dt.now().strftime('%Y%m%d_%H%M%S'))
+    market_order = api.submit_market_order(
+        order_id=order_id, security_code='ESZ3', exchange_code='CME', quantity=2, is_buy=True
+    )
+    while market_order.in_market is False:
+        time.sleep(0.1) # Order is in the market once we have a basket id from the Exchange
+
+    while market_order.fill_status != FillStatus.FILLED:
+        time.sleep(0.1)
+
+    avg_px, qty = market_order.average_fill_price_qty
+    print(market_order)
+    print(market_order.fill_dataframe)
+```
+
+#### Placing a Limit Order:
+
+We'll use the ticker api to get the most up to date live price and place a limit order which will fill due to aggressive limit price
+
+```python
+from datetime import datetime as dt
+import time
+
+from rithmic import RithmicOrderApi, RithmicEnvironment, RithmicTickerApi
+from rithmic.interfaces.order.order_types import FillStatus
+
+
+if __name__ == '__main__':
+    api = RithmicOrderApi(env=RithmicEnvironment.RITHMIC_PAPER_TRADING)
+    ticker_api = RithmicTickerApi(env=RithmicEnvironment.RITHMIC_PAPER_TRADING, loop=api.loop)
+    security_code, exchange_code = 'ESZ3', 'CME'
+    tick_data = ticker_api.stream_market_data(security_code, exchange_code)
+    while tick_data.tick_count < 5:
+        time.sleep(0.01)
+    last_px = tick_data.tick_dataframe.iloc[-1].close
+    limit_px = last_px + (0.25 * 2) # Set 2 ticks above market for a buy to fill immediately
+    order_id = '{0}_limit_order'.format(dt.now().strftime('%Y%m%d_%H%M%S'))
+    limit_order = api.submit_limit_order(
+        order_id=order_id, security_code='ESZ3', exchange_code='CME', quantity=2, is_buy=True, limit_price=limit_px
+    )
+    while limit_order.in_market is False:
+        time.sleep(0.1) # Order is in the market once we have a basket id from the Exchange
+
+    while limit_order.fill_status != FillStatus.FILLED:
+        time.sleep(0.1)
+
+    avg_px, qty = limit_order.average_fill_price_qty
+    print(limit_order)
+    print(limit_order.fill_dataframe)
+```
+
+
+#### Cancelling a Limit Order:
+
+We'll use the ticker api to get the most up to date live price and place a limit order which will fill due to aggressive limit price
+
+```python
+from datetime import datetime as dt
+import time
+
+from rithmic import RithmicOrderApi, RithmicEnvironment, RithmicTickerApi
+from rithmic.interfaces.order.order_types import FillStatus
+
+
+if __name__ == '__main__':
+    api = RithmicOrderApi(env=RithmicEnvironment.RITHMIC_PAPER_TRADING)
+    ticker_api = RithmicTickerApi(env=RithmicEnvironment.RITHMIC_PAPER_TRADING, loop=api.loop)
+    security_code, exchange_code = 'ESZ3', 'CME'
+    tick_data = ticker_api.stream_market_data(security_code, exchange_code)
+    while tick_data.tick_count < 5:
+        time.sleep(0.01)
+    last_px = tick_data.tick_dataframe.iloc[-1].close
+    limit_px = last_px + (0.25 * 2) # Set 2 ticks above market for a buy to fill immediately
+    order_id = '{0}_limit_order'.format(dt.now().strftime('%Y%m%d_%H%M%S'))
+    limit_order = api.submit_limit_order(
+        order_id=order_id, security_code='ESZ3', exchange_code='CME', quantity=2, is_buy=True, limit_price=limit_px
+    )
+    while limit_order.in_market is False:
+        time.sleep(0.1) # Order is in the market once we have a basket id from the Exchange
+
+    while limit_order.fill_status != FillStatus.FILLED:
+        time.sleep(0.1)
+
+    avg_px, qty = limit_order.average_fill_price_qty
+    print(limit_order)
+    print(limit_order.fill_dataframe)
+```
+
+
+
 
 ### Package, module name
 

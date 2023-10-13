@@ -11,7 +11,7 @@ setuptools.setup(
     keywords='python rithmic',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/tomchen/example_pypi_package',
+    url='https://github.com/jacksonwoody/pyrithmic',
     project_urls={
         'Documentation': 'https://github.com/jacksonwoody/pyrithmic',
         'Bug Reports':
@@ -22,6 +22,7 @@ setuptools.setup(
     },
     package_dir={'': 'src'},
     packages=setuptools.find_packages(where='src'),
+    include_package_data=True,
     classifiers=[
         # see https://pypi.org/classifiers/
         'Development Status :: 5 - Production/Stable',

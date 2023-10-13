@@ -12,6 +12,10 @@ class ConfigFileNotFoundException(PyRithmicException):
     pass
 
 
+class RithmicCredentialPathNotSetException(PyRithmicException):
+    pass
+
+
 class WebsocketClosedException(PyRithmicException):
     pass
 
@@ -33,4 +37,16 @@ class NoValidTradeRouteException(PyRithmicException):
 
 
 class NoTradingConfigException(PyRithmicException):
+    pass
+
+
+class DuplicateOrderIdException(PyRithmicException):
+    pass
+
+
+class UncancellableOrderException(PyRithmicException):
+    pass
+
+
+class UnmodifiableOrderException(PyRithmicException):
     pass
