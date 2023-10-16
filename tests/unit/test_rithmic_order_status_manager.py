@@ -11,7 +11,7 @@ TEST_EXCH = 'CME'
 
 def simulate_exchange_updates_to_status_manager(status_manager: StatusManager, exchange_updates: list):
     for exchange_update in exchange_updates:
-        status_manager.process_exchange_update(exchange_update)
+        status_manager._process_exchange_update(exchange_update)
 
 
 def test_status_manager_bracket_order_filled_child_filled():
@@ -87,7 +87,7 @@ def test_status_manager_bracket_order_filled_child_filled():
          'original_basket_id': '1687449781', 'manual_or_auto': 2, 'orig_price_type': 1, 'bracket_type': 6,
          'order_id': None},
     ]
-    order = sm.add_bracket_order('20231009_142748_bracket_order_one_leg_filled', TEST_SEC, TEST_EXCH, 1, True, 4323.5, 2, 1)
+    order = sm._add_bracket_order('20231009_142748_bracket_order_one_leg_filled', TEST_SEC, TEST_EXCH, 1, True, 4323.5, 2, 1)
     simulate_exchange_updates_to_status_manager(sm, exchange_updates)
     assert order.fill_status == FillStatus.FILLED
 

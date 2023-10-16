@@ -321,7 +321,7 @@ class RithmicOrderApi(RithmicBaseApi):
         row = self._get_row_information(template_id, msg)
         row['order_id'] = row.get('user_tag')
         self.rithmic_updates_data.append(row)
-        self.status_manager.process_rithmic_update(row)
+        self.status_manager._process_rithmic_update(row)
         return row
 
     def _process_exchange_order_notification(self, template_id, msg) -> dict:
@@ -329,7 +329,7 @@ class RithmicOrderApi(RithmicBaseApi):
         row = self._get_row_information(template_id, msg)
         row['order_id'] = row.get('user_tag')
         self.exchange_updates_data.append(row)
-        self.status_manager.process_exchange_update(row)
+        self.status_manager._process_exchange_update(row)
         return row
 
     def _process_response_new_order(self, template_id, msg) -> dict:
@@ -470,7 +470,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param is_buy: (bool) True for a Buy, False for a Sell
         :return: (MarketOrder) market order
         """
-        market_order = self.status_manager.add_market_order(order_id, security_code, exchange_code, quantity, is_buy)
+        market_order = self.status_manager._add_market_order(order_id, security_code, exchange_code, quantity, is_buy)
         asyncio.run_coroutine_threadsafe(
             self._send_market_order(order_id, security_code, exchange_code, quantity, is_buy), loop=self.loop
         )
@@ -491,7 +491,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param stop_loss_ticks: (int) Number of ticks from limit price to set Stop Loss Trigger Price
         :return: (BracketOrder) bracket order
         """
-        bracket_order = self.status_manager.add_bracket_order(
+        bracket_order = self.status_manager._add_bracket_order(
             order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks
         )
         asyncio.run_coroutine_threadsafe(self._send_bracket_order(
@@ -512,7 +512,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param limit_price: (float) Upper/Lower limit for a Buy/Sell to fill the order at
         :return: (LimitOrder) limit order
         """
-        limit_order = self.status_manager.add_limit_order(
+        limit_order = self.status_manager._add_limit_order(
             order_id, security_code, exchange_code, quantity, is_buy, limit_price
         )
         asyncio.run_coroutine_threadsafe(self._send_limit_order(
@@ -546,7 +546,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param order_id: (str) valid order id
         :return: None
         """
-        order = self.status_manager.get_order_by_order_id(order_id)
+        order = self.status_manager._get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(self._send_cancel_order(order.basket_id), loop=self.loop)
 
     def submit_cancel_bracket_order_all_children(self, order_id: str) -> None:
@@ -556,7 +556,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param order_id: (str) order id of the parent order
         :return:
         """
-        parent_order = self.status_manager.get_order_by_order_id(order_id)
+        parent_order = self.status_manager._get_order_by_order_id(order_id)
         for order in parent_order.stop_loss_orders:
             asyncio.run_coroutine_threadsafe(self._send_cancel_order(order.basket_id), loop=self.loop)
 
@@ -659,7 +659,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param new_stop_ticks: (int) new stop ticks
         :return:
         """
-        order = self.status_manager.get_order_by_order_id(order_id)
+        order = self.status_manager._get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(
             self._send_bracket_order_stop_amendment(order.basket_id, old_stop_ticks, new_stop_ticks), loop=self.loop,
         )
@@ -691,7 +691,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param stop_loss: (float) new trigger price
         :return: None
         """
-        order = self.status_manager.get_order_by_order_id(order_id)
+        order = self.status_manager._get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(
             self._send_stop_loss_order_amendment(order.basket_id, security_code, exchange_code, quantity, stop_loss),
             loop=self.loop,
@@ -709,7 +709,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param limit_price: (float) new limit price
         :return: None
         """
-        order = self.status_manager.get_order_by_order_id(order_id)
+        order = self.status_manager._get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(
             self._send_limit_order_amendment(order.basket_id, security_code, exchange_code, quantity, limit_price),
             loop=self.loop,
@@ -723,7 +723,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param stop_loss: (float) new stop loss trigger price
         :return: None
         """
-        parent_order = self.status_manager.get_order_by_order_id(order_id)
+        parent_order = self.status_manager._get_order_by_order_id(order_id)
         assert isinstance(parent_order, BracketOrder)
         for stop_order in parent_order.stop_loss_orders:
             asyncio.run_coroutine_threadsafe(
@@ -742,7 +742,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param limit_price: (float) new limit price
         :return: None
         """
-        parent_order = self.status_manager.get_order_by_order_id(order_id)
+        parent_order = self.status_manager._get_order_by_order_id(order_id)
         assert isinstance(parent_order, BracketOrder)
         for take_profit_order in parent_order.take_profit_orders:
             asyncio.run_coroutine_threadsafe(
