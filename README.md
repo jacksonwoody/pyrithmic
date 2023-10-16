@@ -350,3 +350,7 @@ while api.downloads_are_complete is False:
 print(es_dl.tick_dataframe)
 print(nq_dl.tick_dataframe)
 ```
+
+## Testing
+
+Integration testing is run against the RITHMIC_PAPER_TRADING environment to test real world functionality, thus user must have credentials and access to run these tests. Tests highlight examples of using live tick data, downloading historical tick data and placing/modifying/cancelling orders and processing fills.
