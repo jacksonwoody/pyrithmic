@@ -30,7 +30,7 @@ def is_datetime_utc(input_datetime: dt) -> bool:
 
 def get_credentials_path():
     if 'RITHMIC_CREDENTIALS_PATH' not in os.environ:
-        raise RithmicCredentialPathNotSetException('Require OS Environment RITHMIC_CREDENTIALS_PATH with path location of credentials and ssl certificate')
+        raise RithmicCredentialPathNotSetException('Require OS Environment RITHMIC_CREDENTIALS_PATH with path location of credential ini files')
     return Path(os.environ['RITHMIC_CREDENTIALS_PATH'])
 
 
