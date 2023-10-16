@@ -113,6 +113,11 @@ class RithmicHistoryApi(RithmicBaseApi):
         """Returns True if any downloads have not completed"""
         return any(download.download_in_progress for download in self.current_downloads.values())
 
+    @property
+    def downloads_are_complete(self) -> bool:
+        """Returns True if all downloads have completed"""
+        return all(download.complete for download in self.current_downloads.values())
+
     async def _consume_subscription(self) -> None:
         """
         Consumes new messages as data is streamed, sends a heartbeat if no data received after 5 seconds and

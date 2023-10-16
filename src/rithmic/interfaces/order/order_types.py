@@ -74,6 +74,9 @@ class BaseOrder(metaclass=abc.ABCMeta):
         self.modified = False
         self.modify_count = 0
         self.modify_history = dict()
+        self.rejected = False
+        self.rejected_at = None
+        self.rejected_reason = None
 
     def _add_basket_id(self, basket_id: str) -> None:
         """
@@ -108,6 +111,12 @@ class BaseOrder(metaclass=abc.ABCMeta):
         self.cancelled = True
         self.cancelled_at = timestamp
         self.cancelled_id = cancelled_id
+
+    def _mark_order_rejected(self, timestamp: dt, rejected_reason: str) -> None:
+        """Mark Order Rejected from Rithmic"""
+        self.rejected = True
+        self.rejected_at = timestamp
+        self.rejected_reason = rejected_reason
 
     @property
     def _get_modify_level_value(self) -> float:
@@ -157,6 +166,18 @@ class BaseOrder(metaclass=abc.ABCMeta):
         )
         if self.fill_status != FillStatus.UNFILLED:
             value = '{0} | {1} @ {2:.2f}'.format(value, avg_qty, avg_px)
+        if self.cancelled:
+            value = '{0} | Order Cancelled at {1}; Cancellation ID {2}'.format(
+                value, self.cancelled_at, self.cancelled_id
+            )
+        if self.modified:
+            value = '{0} | Order Has Been Modified {1} Times; Last Modification: {2}'.format(
+                value, self.modify_count, self.last_modification
+            )
+        if self.rejected:
+            value = '{0} | Order REJECTED -> Rejected at {1}, reason: {2}'.format(
+                value, self.rejected_at, self.rejected_reason
+            )
         return value
 
     @property

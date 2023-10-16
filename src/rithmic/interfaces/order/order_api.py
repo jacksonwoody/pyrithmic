@@ -321,6 +321,7 @@ class RithmicOrderApi(RithmicBaseApi):
         row = self._get_row_information(template_id, msg)
         row['order_id'] = row.get('user_tag')
         self.rithmic_updates_data.append(row)
+        self.status_manager.process_rithmic_update(row)
         return row
 
     def _process_exchange_order_notification(self, template_id, msg) -> dict:
@@ -491,10 +492,10 @@ class RithmicOrderApi(RithmicBaseApi):
         :return: (BracketOrder) bracket order
         """
         bracket_order = self.status_manager.add_bracket_order(
-            order_id, security_code, exchange_code, quantity, is_buy, limit_price, stop_loss_ticks, take_profit_ticks,
+            order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks
         )
         asyncio.run_coroutine_threadsafe(self._send_bracket_order(
-            order_id, security_code, exchange_code, quantity, is_buy, limit_price, stop_loss_ticks, take_profit_ticks
+            order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks
         ), loop=self.loop)
         return bracket_order
 

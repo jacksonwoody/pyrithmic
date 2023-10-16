@@ -317,3 +317,26 @@ def test_fill_bracket_order_children_created_take_profit_amended(order_api, tick
         assert record['old_limit_price'] == limit_px + (take_profit_ticks * 0.25)
         assert isinstance(record['modify_id'], str)
 
+
+def test_bracket_order_rejected(order_api, ticker_api):
+    order_api.clear_existing_updates()
+    security_code = ticker_api.get_front_month_contract(ES, EXCHANGE_CODE)
+    es = ticker_api.stream_market_data(security_code, EXCHANGE_CODE)
+    while len(es.tick_dataframe) < 5:
+        time.sleep(0.1)
+    last_px = es.tick_dataframe.iloc[-1].close
+    limit_px = last_px + (0.25 * 3)
+    quantity = 150 # Large quantity above margin limit
+    stop_loss_ticks = 20
+    take_profit_ticks = 15
+    ticker_api.stop_market_data_stream(security_code, EXCHANGE_CODE)
+    order_id = '{0}_bracket_order_rejected'.format(dt.now().strftime('%Y%m%d_%H%M%S'))
+    bracket_order = order_api.submit_bracket_order(
+        order_id=order_id, security_code=security_code, exchange_code=EXCHANGE_CODE, quantity=quantity, is_buy=True,
+        limit_price=limit_px, stop_loss_ticks=stop_loss_ticks, take_profit_ticks=take_profit_ticks,
+    )
+    while bracket_order.rejected is False:
+        time.sleep(0.01)
+
+    assert bracket_order.rejected_reason == 'Rejected at RMS - Available margin exhausted'
+

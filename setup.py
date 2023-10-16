@@ -40,15 +40,14 @@ setuptools.setup(
         'Operating System :: OS Independent',
     ],
     python_requires='>=3.6',
-    # install_requires=['Pillow'],
+    install_requires=[
+        'numpy',
+        'pandas',
+        'websockets',
+        'protobuf==3.20.3',
+    ],
     extras_require={
         'dev': ['check-manifest'],
-        # 'test': ['coverage'],
+        'test': ['coverage', 'pytest'],
     },
-    # entry_points={
-    #     'console_scripts': [  # This can provide executable scripts
-    #         'run=config:main',
-    # You can execute `run` in bash to run `main()` in src/config/__init__.py
-    #     ],
-    # },
 )
