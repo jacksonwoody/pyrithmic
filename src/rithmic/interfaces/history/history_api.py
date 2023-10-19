@@ -279,10 +279,10 @@ class RithmicHistoryApi(RithmicBaseApi):
             download.download_results.append(df_final)
             if intermittent_cb is not None:
                 intermittent_cb(df_final, download)
-        download._mark_download_complete()
         if final_cb is not None:
             df = download.tick_dataframe
             final_cb(df, download)
+        download._mark_download_complete()
 
     def download_historical_tick_data(self, security_code: str, exchange_code: str, start_time: dt, end_time: dt):
         """
