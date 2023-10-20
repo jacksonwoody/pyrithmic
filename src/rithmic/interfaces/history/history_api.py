@@ -2,10 +2,11 @@ import asyncio
 import logging
 import time
 from datetime import datetime as dt
-from typing import Union, Tuple
+from typing import Union, Tuple, Callable
 
 import pandas as pd
 import pytz
+from pandas import NaT
 
 from rithmic import RithmicEnvironment, CallbackManager, CallbackId
 from rithmic.interfaces.base import RithmicBaseApi
@@ -62,20 +63,25 @@ class DownloadRequest:
         return '{0}_{1}'.format(self.security_code, self.exchange_code)
 
     def _mark_download_complete(self) -> None:
-        """
-        Marks download as complete and creates a Pandas DataFrame of the data downloaded
+        """Marks download as complete"""
+        self.complete = True
 
-        :return: None
-        """
+    def _create_tick_dataframe(self) -> None:
+        """Creates Tick Dataframe once download has completed"""
         df = pd.concat(self.download_results)
         df = set_index_no_name(df, 'timestamp')
         self.tick_dataframe = df
-        self.complete = True
+
+    def _clear_interim_status(self) -> None:
+        """As last bar returned on interim request and data consumed, clear the temp status of the download"""
+        self._last_bar_returned = False
+        self._clear_temp_data()
 
     @property
     def download_key(self) -> tuple:
         """Returns a tuple of security code and exchange code for mapping purposes"""
         return self.security_code, self.exchange_code
+
 
 
 class RithmicHistoryApi(RithmicBaseApi):
@@ -264,25 +270,41 @@ class RithmicHistoryApi(RithmicBaseApi):
                 request_id, download.security_code, download.exchange_code, start_time, end_time)
             while download._last_bar_returned is False:
                 await asyncio.sleep(0.5)
-            df = pd.DataFrame(download._temp_data)
-            download._last_bar_returned = False
-            download._clear_temp_data()
-            last_timestamp = df.timestamp.max()
-            last_timestamp_second = last_timestamp.floor('1s')
-            row_count = len(df)
-            if (last_timestamp < end_time) and (row_count == 10000):
-                df_final = df[df.timestamp < last_timestamp_second]
-                start_time = last_timestamp_second
-            else:
-                df_final = df[:]
-                complete = True
-            download.download_results.append(df_final)
-            if intermittent_cb is not None:
-                intermittent_cb(df_final, download)
+            complete, start_time = self._process_last_bar_returned(download, intermittent_cb, end_time)
         if final_cb is not None:
             df = download.tick_dataframe
             final_cb(df, download)
         download._mark_download_complete()
+
+    def _process_last_bar_returned(self, download: DownloadRequest, intermittent_cb: Callable,
+                                   end_time: dt) -> Tuple[bool, dt]:
+        """
+        Process interim result after last bar has been returned. Returns a bool if download has fully completed
+        and a start time update if not fully complete for the next request
+
+        :param download: (DownloadRequest) The download in progress
+        :param intermittent_cb: (Callbable) any callback attached for intermittent processing
+        :param end_time: (dt) timestamp of original end_time requested
+        :return: (tuple) boolean if download fully completed and start time adjusted for next request
+        """
+        complete = False
+        start_time = NaT
+        df = pd.DataFrame(download._temp_data)
+        download._clear_interim_status()
+        last_timestamp = df.timestamp.max()
+        last_timestamp_second = last_timestamp.floor('1s')
+        if (last_timestamp < end_time) and (len(df) == 10000):
+            df_final = df[df.timestamp < last_timestamp_second]
+            start_time = last_timestamp_second
+        else:
+            df_final = df[:]
+            complete = True
+        download.download_results.append(df_final)
+        if complete:
+            download._create_tick_dataframe()
+        if intermittent_cb is not None:
+            intermittent_cb(df_final, download)
+        return complete, start_time
 
     def download_historical_tick_data(self, security_code: str, exchange_code: str, start_time: dt, end_time: dt):
         """
