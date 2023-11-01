@@ -248,7 +248,7 @@ class RithmicTickerApi(RithmicBaseApi):
             result = fn(template_id, msg)
             callback_fn = self.callback_manager.get_callback_by_template_id(CallbackId.TICKER_LAST_TRADE)
             if callback_fn is not None and result is not None:
-                callback_fn(result)
+                self.perform_callback(callback_fn, [result])
 
     def process_last_trade(self, template_id: int, msg: LastTrade):
         """
@@ -310,7 +310,7 @@ class RithmicTickerApi(RithmicBaseApi):
                     df_current = stream.tick_dataframe
                     df = df_current.iloc[stream._last_row_processed:]
                     if len(df) > 0:
-                        callback_fn(df, stream.security_code, stream.exchange_code)
+                        self.perform_callback(callback_fn, [df, stream.security_code, stream.exchange_code])
                         stream._set_last_row_processed(len(df_current))
             await asyncio.sleep(self.periodic_sync_interval_seconds)
 

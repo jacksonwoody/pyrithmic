@@ -304,7 +304,7 @@ class RithmicOrderApi(RithmicBaseApi):
             result = fn(template_id, msg)
             callback_fn = self.callback_manager.get_callback_by_template_id(template_id)
             if callback_fn is not None:
-                callback_fn(result)
+                self.perform_callback(callback_fn, [result])
             return result
         else:
             x = 1
@@ -725,7 +725,10 @@ class RithmicOrderApi(RithmicBaseApi):
         """
         parent_order = self.status_manager._get_order_by_order_id(order_id)
         assert isinstance(parent_order, BracketOrder)
+        next_modified_count = parent_order.all_stops_modified_count + 1
+        modify_map = dict()
         for stop_order in parent_order.stop_loss_orders:
+            modify_map[stop_order.order_id] = stop_order.modify_count + 1
             asyncio.run_coroutine_threadsafe(
                 self._send_stop_loss_order_amendment(
                     stop_order.basket_id, stop_order.security_code, stop_order.exchange_code, stop_order.quantity,
@@ -733,6 +736,12 @@ class RithmicOrderApi(RithmicBaseApi):
                 ),
                 loop=self.loop,
             )
+        complete = False
+        while not complete:
+            if all([stop.modify_count == modify_map[stop.order_id] for stop in parent_order.stop_loss_orders]):
+                complete = True
+                parent_order.all_stops_modified_count = next_modified_count
+                parent_order.all_stops_modified = True
 
     def submit_amend_bracket_order_all_take_profit_orders(self, order_id: str, limit_price: float) -> None:
         """

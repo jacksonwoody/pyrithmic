@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime as dt
-from typing import Union, Tuple, Callable
+from typing import Union, Tuple, Callable, Dict
 
 import pandas as pd
 import pytz
@@ -12,6 +12,7 @@ from rithmic import RithmicEnvironment, CallbackManager, CallbackId
 from rithmic.interfaces.base import RithmicBaseApi
 from rithmic.protocol_buffers import request_login_pb2, request_tick_bar_replay_pb2, response_tick_bar_replay_pb2
 from rithmic.tools.general import set_index_no_name, is_datetime_utc
+from rithmic.tools.pyrithmic_exceptions import ReferenceDataUnavailableException, DownloadErrorException
 from rithmic.tools.pyrithmic_logger import logger, configure_logging
 
 
@@ -42,6 +43,12 @@ class DownloadRequest:
         self.tick_dataframe = pd.DataFrame([])
         self._temp_data = []
         self._last_bar_returned = False
+        self.error_downloading = False
+
+    @property
+    def has_response(self):
+        return len(self._temp_data) > 0 or len(
+            self.download_results) > 0 or self.error_downloading or self._last_bar_returned
 
     def _clear_temp_data(self) -> None:
         """Clear existing temp data before new data arrives"""
@@ -82,6 +89,8 @@ class DownloadRequest:
         """Returns a tuple of security code and exchange code for mapping purposes"""
         return self.security_code, self.exchange_code
 
+    def mark_error_downloading(self):
+        self.error_downloading = True
 
 
 class RithmicHistoryApi(RithmicBaseApi):
@@ -102,7 +111,7 @@ class RithmicHistoryApi(RithmicBaseApi):
         :param loop: (AbstractEventLoop) asyncio event loop can be provided to share/use existing loop
         """
         RithmicBaseApi.__init__(self, env, callback_manager, auto_connect, loop)
-        self.current_downloads: dict[tuple, DownloadRequest] = dict()
+        self.current_downloads: Dict[tuple, DownloadRequest] = dict()
         self.consuming_subscription = False
 
     def _add_download(self, download: DownloadRequest) -> None:
@@ -151,7 +160,13 @@ class RithmicHistoryApi(RithmicBaseApi):
                 try:
                     template_id = self.get_template_id_from_message_buffer(msg_buf)
                     if template_id == 207:
-                        row, is_last_bar, request_id = self._handle_tick_data(msg_buf)
+                        try:
+                            row, is_last_bar, request_id = self._handle_tick_data(msg_buf)
+                        except ReferenceDataUnavailableException as e:
+                            download = self.get_download_by_request_id(e.request_id)
+                            download._last_bar_returned = True
+                            download.mark_error_downloading()
+                            continue
                         download = self.get_download_by_request_id(request_id)
                         if is_last_bar:
                             download._last_bar_returned = True
@@ -172,6 +187,11 @@ class RithmicHistoryApi(RithmicBaseApi):
         """
         msg = response_tick_bar_replay_pb2.ResponseTickBarReplay()
         msg.ParseFromString(msg_buf[4:])
+        if msg.rp_code == ['7', 'reference data not available']:
+            request_id = msg.user_msg[0]
+            raise ReferenceDataUnavailableException(
+                'Reference Data is Not Available for the Security requested', request_id
+            )
         is_last_bar = msg.rp_code == ['0'] or msg.rq_handler_rp_code == []
         ssboe = msg.data_bar_ssboe
         usecs = msg.data_bar_usecs
@@ -270,14 +290,17 @@ class RithmicHistoryApi(RithmicBaseApi):
                 request_id, download.security_code, download.exchange_code, start_time, end_time)
             while download._last_bar_returned is False:
                 await asyncio.sleep(0.5)
+            if download.error_downloading:
+                download._mark_download_complete()
+                return
             complete, start_time = self._process_last_bar_returned(download, intermittent_cb, end_time)
         if final_cb is not None:
             df = download.tick_dataframe
-            final_cb(df, download)
+            self.perform_callback(final_cb, [df, download])
         download._mark_download_complete()
 
     def _process_last_bar_returned(self, download: DownloadRequest, intermittent_cb: Callable,
-                                   end_time: dt) -> Tuple[bool, dt]:
+                                   end_time: dt) -> Tuple[bool, Union[dt, None]]:
         """
         Process interim result after last bar has been returned. Returns a bool if download has fully completed
         and a start time update if not fully complete for the next request
@@ -290,6 +313,8 @@ class RithmicHistoryApi(RithmicBaseApi):
         complete = False
         start_time = NaT
         df = pd.DataFrame(download._temp_data)
+        if len(df) == 0:
+            return True, None
         download._clear_interim_status()
         last_timestamp = df.timestamp.max()
         last_timestamp_second = last_timestamp.floor('1s')
@@ -303,7 +328,7 @@ class RithmicHistoryApi(RithmicBaseApi):
         if complete:
             download._create_tick_dataframe()
         if intermittent_cb is not None:
-            intermittent_cb(df_final, download)
+            self.perform_callback(intermittent_cb, [df_final, download])
         return complete, start_time
 
     def download_historical_tick_data(self, security_code: str, exchange_code: str, start_time: dt, end_time: dt):
@@ -324,4 +349,10 @@ class RithmicHistoryApi(RithmicBaseApi):
         self._add_download(download)
         coro = self._fetch_historical_tick_data(download)
         asyncio.run_coroutine_threadsafe(coro, loop=self.loop)
+        while download.has_response is False:
+            time.sleep(0.01)
+        if download.error_downloading:
+            raise DownloadErrorException(
+                'Error encountered on download for {0}-{1}'.format(download.security_code, download.exchange_code)
+            )
         return download

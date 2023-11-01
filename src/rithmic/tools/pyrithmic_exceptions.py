@@ -50,3 +50,13 @@ class UncancellableOrderException(PyRithmicException):
 
 class UnmodifiableOrderException(PyRithmicException):
     pass
+
+
+class ReferenceDataUnavailableException(PyRithmicException):
+    def __init__(self, message, request_id):
+        super().__init__(message)
+        self.request_id = request_id
+
+
+class DownloadErrorException(PyRithmicException):
+    pass

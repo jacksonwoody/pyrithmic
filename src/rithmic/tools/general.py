@@ -1,5 +1,6 @@
+import enum
 import os
-from datetime import datetime as dt
+from datetime import datetime as dt, date, timedelta
 from pathlib import Path
 
 import pytz
@@ -38,3 +39,21 @@ def set_index_no_name(df: DataFrame, column_name: str, drop: bool = False) -> Da
     df = df.set_index(df[column_name], drop=drop)
     df = df.rename_axis(index=None)
     return df
+
+
+class DayOfWeek(enum.Enum):
+    MONDAY = 0
+    TUESDAY = 1
+    WEDNESDAY = 2
+    THURSDAY = 3
+    FRIDAY = 4
+    SATURDAY = 5
+    SUNDAY = 6
+
+
+def find_nearest_day_of_week(input_date: date, day_of_week: DayOfWeek, backwards: bool = True):
+    cycle_move = -1 if backwards else 1
+    new_date = input_date - timedelta(days=1)
+    while new_date.weekday() != day_of_week.value:
+        new_date = new_date + timedelta(days=cycle_move)
+    return new_date

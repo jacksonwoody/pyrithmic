@@ -82,3 +82,4 @@ class CallbackManager:
 
     def callback_id_registered(self, callback_id: int) -> bool:
         return callback_id in self.callback_mapping
+

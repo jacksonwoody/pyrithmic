@@ -78,6 +78,10 @@ class BaseOrder(metaclass=abc.ABCMeta):
         self.rejected_at = None
         self.rejected_reason = None
 
+    @property
+    def have_initial_order_response(self):
+        return self.in_market is True or self.rejected is True
+
     def _add_basket_id(self, basket_id: str) -> None:
         """
         Added once received from the Exchange; means the order is live in the market and flagged as such
@@ -376,8 +380,12 @@ class BracketOrder(LimitOrder):
         LimitOrder.__init__(self, order_id, security_code, exchange_code, quantity, is_buy, limit_price)
         self.take_profit_ticks = take_profit_ticks
         self.stop_loss_ticks = stop_loss_ticks
-        self.take_profit_orders = []
-        self.stop_loss_orders = []
+        self.take_profit_orders: List[TakeProfitOrder] = []
+        self.stop_loss_orders: List[StopLossOrder] = []
+
+        self.all_stops_modified = False
+        self.all_stops_modified_count = 0
+        self.all_stops_modified_history = dict()
 
     def _add_take_profit_order(self, order: TakeProfitOrder) -> None:
         """

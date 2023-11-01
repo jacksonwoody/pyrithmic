@@ -9,6 +9,7 @@ from rithmic.tools.pyrithmic_exceptions import EnvironmentNotConfiguredException
 ENVIRONMENT_MAP = dict(
     RITHMIC_TEST='RITHMIC_TEST',
     RITHMIC_PAPER_TRADING='RITHMIC_PAPER_TRADING',
+    RITHMIC_LIVE='RITHMIC_LIVE',
 )
 
 PATH_PROJECT_ROOT = Path(__file__).parent.parent
@@ -17,6 +18,7 @@ PATH_PROJECT_ROOT = Path(__file__).parent.parent
 class RithmicEnvironment(enum.Enum):
     RITHMIC_TEST = 'RITHMIC_TEST'
     RITHMIC_PAPER_TRADING = 'RITHMIC_PAPER_TRADING'
+    RITHMIC_LIVE = 'RITHMIC_LIVE'
 
 
 def _get_config_file(environment: RithmicEnvironment):

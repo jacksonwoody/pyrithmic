@@ -1,9 +1,10 @@
+import inspect
 from abc import ABCMeta
 import asyncio
 from asyncio import AbstractEventLoop
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Union
+from typing import Union, Callable
 
 import pytz
 import ssl
@@ -185,3 +186,9 @@ class RithmicBaseApi(metaclass=ABCMeta):
             logger.info('Logged out and Disconnected')
         else:
             logger.info('Connection already closed, exiting...')
+
+    def perform_callback(self, func: Callable, args: list):
+        if inspect.iscoroutinefunction(func):
+            asyncio.run_coroutine_threadsafe(func(*args), loop=self.loop)
+        else:
+            func(*args)

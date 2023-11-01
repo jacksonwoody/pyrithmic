@@ -261,16 +261,12 @@ def test_fill_bracket_order_children_created_stops_amended(order_api, ticker_api
     assert bracket_order.all_stop_loss_orders_unfilled is True
     assert bracket_order.all_take_profit_orders_unfilled is True
 
-    now = get_utc_now()
-
     new_stop_ticks = 10
     new_stop = limit_px - (0.25 * new_stop_ticks)
     order_api.submit_amend_bracket_order_all_stop_loss_orders(bracket_order.order_id, new_stop)
 
-    amended = False
-    while not amended:
+    while bracket_order.all_stops_modified is False:
         time.sleep(0.01)
-        amended = all(o.modify_count == 1 for o in bracket_order.stop_loss_orders)
 
     assert all(o.trigger_price == new_stop for o in bracket_order.stop_loss_orders)
 
