@@ -132,3 +132,15 @@ def test_ticker_api_streaming_tick_data_custom_callbacks_multiple_securities(tic
 
     assert res.sec_exchange_counter[es.stream_key] > 0
     assert res.sec_exchange_counter[nq.stream_key] > 0
+
+
+def test_reference_data_ticker_api(ticker_api):
+    es_front = ticker_api.get_front_month_contract(ES, EXCHANGE_CODE)
+    ref_data = ticker_api.get_reference_data(es_front, EXCHANGE_CODE)
+    assert isinstance(ref_data, dict)
+    expected = dict(
+        symbol_name='E-Mini S&P 500', underlying_code=ES, security_code=es_front, exchange_code=EXCHANGE_CODE,
+        currency='USD', multiplier=50, tick_multiplier=0.25, tick_value=12.5,
+    )
+    for k, v in expected.items():
+        assert ref_data[k] == v
