@@ -223,6 +223,21 @@ class BaseOrder(metaclass=abc.ABCMeta):
         return len(self.fills) > 0
 
     @property
+    def is_unfilled(self) -> bool:
+        """Boolean whether order is unfilled or not"""
+        return not self.has_fills
+
+    @property
+    def fully_filled(self) -> bool:
+        """Boolean whether order is fully filled"""
+        return self.filled_quantity == self.quantity
+
+    @property
+    def unfilled_quantity(self) -> int:
+        """Remaining quantity to be filled"""
+        return self.quantity - self.filled_quantity
+
+    @property
     def average_fill_price_qty(self) -> Tuple[float, int]:
         """
         Returns the average fill price and the quantity filled
@@ -234,8 +249,8 @@ class BaseOrder(metaclass=abc.ABCMeta):
         df = self.fill_dataframe
         df = df.assign(qty_px=df.quantity * df.price)
         g = df.groupby('order_id').agg(
-            quantity=('quantity', sum), is_buy=('is_buy', 'first'),
-            timestamp=('timestamp', 'last'), qty_px=('qty_px', sum)
+            quantity=('quantity', 'sum'), is_buy=('is_buy', 'first'),
+            timestamp=('timestamp', 'last'), qty_px=('qty_px', 'sum')
         )
         g = g.assign(avg_px=g.qty_px / g.quantity).reset_index(drop=False)
         row = g.iloc[0]
@@ -249,6 +264,13 @@ class BaseOrder(metaclass=abc.ABCMeta):
         """
         if self.modified:
             return self.modify_history[self.modify_count]
+
+    @property
+    def order_is_open(self):
+        if not (self.rejected or self.cancelled):
+            if self.fill_status != FillStatus.FILLED:
+                return True
+        return False
 
 
 class MarketOrder(BaseOrder):
@@ -344,6 +366,10 @@ class StopLossOrder(BaseOrder):
         BaseOrder.__init__(self, order_id, security_code, exchange_code, quantity, is_buy)
         self.trigger_price = trigger_price
         self.parent_order_id = parent_order_id
+        self.stop_triggered = False
+
+    def mark_stop_as_triggered(self):
+        self.stop_triggered = True
 
 
 CHILD_ORDER_TYPES = Union[StopLossOrder, TakeProfitOrder]
@@ -360,7 +386,7 @@ class BracketOrder(LimitOrder):
     can_modify = False
 
     def __init__(self, order_id: str, security_code: str, exchange_code: str, quantity: int, is_buy: bool,
-                 limit_price: float, take_profit_ticks: int, stop_loss_ticks: int):
+                 limit_price: float, take_profit_ticks: int, stop_loss_ticks: int, tick_multiplier: float):
         """
         Bracket Order init method
 
@@ -372,6 +398,7 @@ class BracketOrder(LimitOrder):
         :param limit_price: (float) Upper/Lower limit for a Buy/Sell to fill the parent at
         :param take_profit_ticks: (int) Number of ticks from limit price to set Take Profit Limit Price
         :param stop_loss_ticks: (int) Number of ticks from limit price to set Stop Loss Trigger Price
+        :param tick_multiplier: (float) Tick multiplier as a float
 
         Note this is currently only configured for STATIC Take Profit and Stop Loss creation.
         Eg on ES, if you submit with a limit of 4001.00 and get filled at 4000.50 (2 ticks better),
@@ -380,8 +407,11 @@ class BracketOrder(LimitOrder):
         LimitOrder.__init__(self, order_id, security_code, exchange_code, quantity, is_buy, limit_price)
         self.take_profit_ticks = take_profit_ticks
         self.stop_loss_ticks = stop_loss_ticks
+        multiplier = -1 if self.is_buy else 1
+        self.stop_loss_trigger_price = limit_price + (stop_loss_ticks * multiplier * tick_multiplier)
         self.take_profit_orders: List[TakeProfitOrder] = []
         self.stop_loss_orders: List[StopLossOrder] = []
+        self.tick_multiplier = tick_multiplier
 
         self.all_stops_modified = False
         self.all_stops_modified_count = 0
@@ -552,6 +582,42 @@ class BracketOrder(LimitOrder):
                     return True
                 elif child_type == ChildOrderType.TAKE_PROFIT and self.all_stop_loss_orders_cancelled:
                     return True
+
+    @property
+    def stop_loss_filled_quantity(self):
+        return sum([o.filled_quantity for o in self.stop_loss_orders])
+
+    @property
+    def take_profit_filled_quantity(self):
+        return sum([o.filled_quantity for o in self.take_profit_orders])
+
+    @property
+    def child_filled_total(self):
+        return self.stop_loss_filled_quantity + self.take_profit_filled_quantity
+
+    @property
+    def parent_and_child_fill_quantity_complete(self):
+        if self.filled_quantity > 0:
+            return self.filled_quantity == self.child_filled_total
+        return False
+
+    @property
+    def order_is_open(self):
+        if not (self.rejected or self.cancelled):
+            if self.fill_status != FillStatus.FILLED:
+                return True
+            else:
+                if self.filled_quantity != (self.stop_loss_filled_quantity + self.take_profit_filled_quantity):
+                    return True
+        return False
+
+    def update_stop_loss_trigger_price(self, trigger_price: float):
+        self.stop_loss_trigger_price = trigger_price
+
+    @property
+    def take_profit_limit_price(self):
+        ticks = self.take_profit_ticks if self.is_buy else self.take_profit_ticks * -1
+        return self.limit_price + (ticks * self.tick_multiplier)
 
 
 VALID_ORDER_TYPES = Union[MarketOrder, LimitOrder, BracketOrder, StopLossOrder, TakeProfitOrder]

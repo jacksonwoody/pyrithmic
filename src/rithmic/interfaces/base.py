@@ -14,7 +14,8 @@ import websockets
 from rithmic.callbacks.callbacks import CallbackManager
 from rithmic.config.credentials import RithmicEnvironment, get_rithmic_credentials
 from rithmic.protocol_buffers import base_pb2, request_login_pb2, response_login_pb2, request_heartbeat_pb2, \
-    request_logout_pb2
+    request_logout_pb2, request_reference_data_pb2
+from rithmic.protocol_buffers.response_reference_data_pb2 import ResponseReferenceData
 from rithmic.tools.pyrithmic_logger import logger
 
 
@@ -22,6 +23,9 @@ INFRA_MAP = {
     1: 'TICKER', 2: 'ORDER', 3: 'HISTORY'
 }
 
+SHARED_RESPONSE_MAP = {
+    15: dict(proto=ResponseReferenceData, fn='process_reference_data_response')
+}
 
 def _setup_ssl_context():
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -56,6 +60,43 @@ class RithmicBaseApi(metaclass=ABCMeta):
             self.start_loop()
         if auto_connect:
             self.connect_and_login()
+        self.reference_data_map = dict()
+
+    async def _request_reference_data(self, security_code: str, exchange_code: str) -> Union[str, None]:
+        """
+        Create request for front month contract of a given underlying/exchange combination
+
+        :param security_code: (str) valid security code
+        :param exchange_code: (str) valid exchange code
+        :return: (dict) the reference data
+        """
+        rq = request_reference_data_pb2.RequestReferenceData()
+
+        key = (security_code, exchange_code)
+
+        rq.template_id = 14
+        rq.symbol = security_code
+        rq.exchange = exchange_code
+        rq.user_msg.append('{0}|{1}'.format(security_code, exchange_code))
+        buffer = self._convert_request_to_bytes(rq)
+        await self.send_buffer(buffer)
+        while key not in self.reference_data_map:
+            await asyncio.sleep(0.01)
+        return self.reference_data_map[key]
+
+    def process_reference_data_response(self, template_id: int, msg: ResponseReferenceData):
+        if msg.rp_code[0] == '0':  # Good response
+            result = dict(
+                symbol_name=msg.symbol_name, expiry_date=dt.strptime(msg.expiration_date, '%Y%m%d').date(),
+                underlying_code=msg.product_code, security_code=msg.symbol, exchange_code=msg.exchange,
+                instrument_type=msg.instrument_type, currency=msg.currency,
+                multiplier=msg.single_point_value, tick_multiplier=msg.min_qprice_change,
+                tick_value = msg.single_point_value * msg.min_qprice_change,
+            )
+            self.reference_data_map[(msg.symbol, msg.exchange)] = result
+        else:
+            requested_key = tuple(msg.user_msg[0].split('|'))
+            self.reference_data_map[requested_key] = None
 
     def add_callback_manager(self, callback_manager: Union[CallbackManager, None]):
         self.callback_manager = callback_manager if callback_manager is not None else CallbackManager()
@@ -192,3 +233,18 @@ class RithmicBaseApi(metaclass=ABCMeta):
             asyncio.run_coroutine_threadsafe(func(*args), loop=self.loop)
         else:
             func(*args)
+
+    def get_reference_data(self, security_code: str, exchange_code: str) -> Union[dict, None]:
+        """
+        Get the current Front Month Contract of an underlying code and exchange, eg ES and CME
+        :param security_code: (str) valid security code
+        :param exchange_code: (str) valid exchange code
+        :return: (dict) reference data
+        """
+        key = (security_code, exchange_code)
+        if key in self.reference_data_map:
+            return self.reference_data_map[key]
+        ref_data = asyncio.run_coroutine_threadsafe(
+            self._request_reference_data(security_code, exchange_code), loop=self.loop
+        ).result()
+        return ref_data

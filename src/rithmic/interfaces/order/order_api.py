@@ -9,7 +9,7 @@ from pandas import DataFrame
 
 from rithmic.callbacks.callbacks import CallbackManager
 from rithmic.config.credentials import RithmicEnvironment
-from rithmic.interfaces.base import RithmicBaseApi
+from rithmic.interfaces.base import RithmicBaseApi, SHARED_RESPONSE_MAP
 from rithmic.interfaces.order.status_manager import StatusManager
 from rithmic.interfaces.order.order_types import BracketOrder, VALID_ORDER_TYPES, MarketOrder, LimitOrder
 from rithmic.protocol_buffers import (
@@ -20,7 +20,7 @@ from rithmic.protocol_buffers import (
     request_bracket_order_pb2, request_cancel_order_pb2, request_update_stop_bracket_level_pb2,
     request_modify_order_pb2, request_update_target_bracket_level_pb2,
 )
-from rithmic.tools.general import dict_destructure
+from rithmic.tools.general import dict_destructure, get_utc_now
 from rithmic.tools.pyrithmic_exceptions import (
     NoValidTradingAccountException, NoValidTradeRouteException, NoTradingConfigException, WebsocketClosedException,
 )
@@ -33,6 +33,7 @@ ORDER_UPDATE_RESPONSE_MAP = {
     331: dict(proto=response_bracket_order_pb2.ResponseBracketOrder, fn='_process_response_bracket_order'),
     313: dict(proto=response_new_order_pb2.ResponseNewOrder, fn='_process_response_new_order'),
 }
+ORDER_UPDATE_RESPONSE_MAP.update(SHARED_RESPONSE_MAP)
 
 SIDE_MAP = {
     True: request_new_order_pb2.RequestNewOrder.TransactionType.BUY,
@@ -491,8 +492,10 @@ class RithmicOrderApi(RithmicBaseApi):
         :param stop_loss_ticks: (int) Number of ticks from limit price to set Stop Loss Trigger Price
         :return: (BracketOrder) bracket order
         """
+        ref_data = self.get_reference_data(security_code, exchange_code)
         bracket_order = self.status_manager._add_bracket_order(
-            order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks
+            order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks,
+            ref_data['tick_multiplier'],
         )
         asyncio.run_coroutine_threadsafe(self._send_bracket_order(
             order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks
@@ -724,6 +727,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :return: None
         """
         parent_order = self.status_manager._get_order_by_order_id(order_id)
+        current_stop_loss = parent_order.stop_loss_trigger_price
         assert isinstance(parent_order, BracketOrder)
         next_modified_count = parent_order.all_stops_modified_count + 1
         modify_map = dict()
@@ -742,6 +746,10 @@ class RithmicOrderApi(RithmicBaseApi):
                 complete = True
                 parent_order.all_stops_modified_count = next_modified_count
                 parent_order.all_stops_modified = True
+        parent_order.update_stop_loss_trigger_price(stop_loss)
+        parent_order.all_stops_modified_history[next_modified_count] = dict(
+            modified_at=get_utc_now(), new_stop_loss=stop_loss, old_stop_loss=current_stop_loss
+        )
 
     def submit_amend_bracket_order_all_take_profit_orders(self, order_id: str, limit_price: float) -> None:
         """

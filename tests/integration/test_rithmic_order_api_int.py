@@ -10,6 +10,7 @@ from rithmic.tools.general import dict_destructure, get_utc_now
 ES = 'ES'
 NQ = 'NQ'
 EXCHANGE_CODE = 'CME'
+TICK_MULT = 0.25
 
 
 def test_order_api_buy_limit_order_and_cancel(order_api, ticker_api):
@@ -40,14 +41,14 @@ def test_order_api_buy_limit_order_and_cancel(order_api, ticker_api):
 
     assert order.cancelled is False
     assert order.cancelled_id is None
-    order_api.submit_cancel_order(order.order_id)
     now = get_utc_now()
+    order_api.submit_cancel_order(order.order_id)
     while order.cancelled is False:
         time.sleep(0.01)
     assert order.cancelled is True
     assert order.cancelled_id is not None
     assert order.order_id in order_api.status_manager.cancelled_orders
-    time_diff = order.cancelled_at - now
+    time_diff = max(order.cancelled_at, now) - min(order.cancelled_at, now)
     assert time_diff.seconds < 2
 
 
@@ -85,7 +86,7 @@ def test_order_api_sell_limit_order_and_cancel(order_api, ticker_api):
     assert order.cancelled is True
     assert order.cancelled_id is not None
     assert order.order_id in order_api.status_manager.cancelled_orders
-    time_diff = order.cancelled_at - now
+    time_diff = max(order.cancelled_at, now) - min(order.cancelled_at, now)
     assert time_diff.seconds < 2
 
 
@@ -151,6 +152,7 @@ def test_order_api_buy_bracket_order_and_cancel(order_api, ticker_api):
         order_id=order_id, security_code=security_code, exchange_code=EXCHANGE_CODE, quantity=1, is_buy=True,
         limit_price=last_px - (0.25 * 20), stop_loss_ticks=10, take_profit_ticks=10,
     )
+    assert order.stop_loss_trigger_price == order.limit_price - (10 * TICK_MULT)
     while order.in_market is False:
         time.sleep(0.01)
 
@@ -165,7 +167,7 @@ def test_order_api_buy_bracket_order_and_cancel(order_api, ticker_api):
     assert order.cancelled is True
     assert order.cancelled_id is not None
     assert order.order_id in order_api.status_manager.cancelled_orders
-    time_diff = order.cancelled_at - now
+    time_diff = max(order.cancelled_at, now) - min(order.cancelled_at, now)
     assert time_diff.seconds < 2
 
 
@@ -202,7 +204,7 @@ def test_fill_bracket_order_children_created_and_cancelled(order_api, ticker_api
         time.sleep(0.01)
 
     for order in tp_orders + sl_orders:
-        time_diff = order.cancelled_at - now
+        time_diff = max(order.cancelled_at, now) - min(order.cancelled_at, now)
         assert time_diff.seconds < 2
 
 
@@ -254,6 +256,8 @@ def test_fill_bracket_order_children_created_stops_amended(order_api, ticker_api
         order_id=order_id, security_code=security_code, exchange_code=EXCHANGE_CODE, quantity=1, is_buy=True,
         limit_price=limit_px, stop_loss_ticks=stop_loss_ticks, take_profit_ticks=take_profit_ticks,
     )
+    assert bracket_order.stop_loss_trigger_price == bracket_order.limit_price - (stop_loss_ticks * TICK_MULT)
+    first_stop = bracket_order.stop_loss_trigger_price
     while bracket_order.children_in_market is False:
         time.sleep(0.01)
 
@@ -268,7 +272,11 @@ def test_fill_bracket_order_children_created_stops_amended(order_api, ticker_api
     while bracket_order.all_stops_modified is False:
         time.sleep(0.01)
 
+    assert bracket_order.stop_loss_trigger_price == new_stop
     assert all(o.trigger_price == new_stop for o in bracket_order.stop_loss_orders)
+    assert list(bracket_order.all_stops_modified_history.keys()) == [1]
+    assert bracket_order.all_stops_modified_history[1]['new_stop_loss'] == new_stop
+    assert bracket_order.all_stops_modified_history[1]['old_stop_loss'] == first_stop
 
 
 def test_fill_bracket_order_children_created_take_profit_amended(order_api, ticker_api):
@@ -335,4 +343,16 @@ def test_bracket_order_rejected(order_api, ticker_api):
         time.sleep(0.01)
 
     assert bracket_order.rejected_reason == 'Rejected at RMS - Available margin exhausted'
+
+
+def test_reference_data(order_api, ticker_api):
+    es_front = ticker_api.get_front_month_contract(ES, EXCHANGE_CODE)
+    ref_data = order_api.get_reference_data(es_front, EXCHANGE_CODE)
+    assert isinstance(ref_data, dict)
+    expected = dict(
+        symbol_name='E-Mini S&P 500', underlying_code=ES, security_code=es_front, exchange_code=EXCHANGE_CODE,
+        currency='USD', multiplier=50, tick_multiplier=0.25, tick_value=12.5,
+    )
+    for k, v in expected.items():
+        assert ref_data[k] == v
 

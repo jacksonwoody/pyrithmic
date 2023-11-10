@@ -5,7 +5,7 @@ from typing import Dict, Union
 from pandas import DataFrame
 
 from rithmic.config.credentials import RithmicEnvironment
-from rithmic.interfaces.base import RithmicBaseApi
+from rithmic.interfaces.base import RithmicBaseApi, SHARED_RESPONSE_MAP
 from rithmic.callbacks.callbacks import CallbackManager, CallbackId
 from rithmic.protocol_buffers import request_login_pb2, last_trade_pb2, request_market_data_update_pb2, \
     request_front_month_contract_pb2
@@ -20,6 +20,7 @@ CONSUMPTION_RESPONSE_MAP = {
     150: dict(proto=LastTrade, fn='process_last_trade'),
     114: dict(proto=ResponseFrontMonthContract, fn='process_front_month_response')
 }
+CONSUMPTION_RESPONSE_MAP.update(SHARED_RESPONSE_MAP)
 
 
 class TickDataStream:

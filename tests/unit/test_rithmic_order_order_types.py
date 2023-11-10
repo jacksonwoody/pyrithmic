@@ -8,6 +8,7 @@ from rithmic.tools.pyrithmic_exceptions import UncancellableOrderException, Unmo
 
 TEST_SEC = 'ESZ3'
 TEST_EXCH = 'CME'
+TICK_MULT = 0.25
 
 
 def test_market_order():
@@ -47,7 +48,7 @@ def test_market_order():
     assert o.fill_status == FillStatus.FILLED
 
     df = o.fill_dataframe
-    assert len(df == 2)
+    assert len(df) == 2
 
     avg_px, fill_qty = o.average_fill_price_qty
     assert avg_px == 4312.5
@@ -91,7 +92,7 @@ def test_limit_order():
     assert o.fill_status == FillStatus.FILLED
 
     df = o.fill_dataframe
-    assert len(df == 2)
+    assert len(df) == 2
 
     avg_px, fill_qty = o.average_fill_price_qty
     assert avg_px == 4009.75
@@ -166,6 +167,7 @@ def test_bracket_order():
     take_ticks = 8
     o = BracketOrder(order_id=order_id, security_code=TEST_SEC, exchange_code=TEST_EXCH, quantity=qty, is_buy=is_buy,
                      limit_price=limit_px, take_profit_ticks=take_ticks, stop_loss_ticks=stop_ticks,
+                     tick_multiplier=TICK_MULT,
                    )
 
     fill_data = {

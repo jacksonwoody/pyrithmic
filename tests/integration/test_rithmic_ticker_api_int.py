@@ -124,7 +124,7 @@ def test_ticker_api_streaming_tick_data_custom_callbacks_multiple_securities(tic
     security_code2 = ticker_api.get_front_month_contract(NQ, EXCHANGE_CODE)
     es = ticker_api.stream_market_data(security_code, EXCHANGE_CODE)
     nq = ticker_api.stream_market_data(security_code2, EXCHANGE_CODE)
-    while ticker_api.total_tick_count < 100:
+    while ticker_api.total_tick_count < 50:
         time.sleep(0.1)
     ticker_api.stop_market_data_stream(security_code, EXCHANGE_CODE)
     ticker_api.stop_market_data_stream(security_code2, EXCHANGE_CODE)

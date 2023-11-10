@@ -71,7 +71,8 @@ class StatusManager:
         return order
 
     def _add_bracket_order(self, order_id: str, security_code: str, exchange_code: str, quantity: int, is_buy: bool,
-                           limit_price: float, take_profit_ticks: int, stop_loss_ticks: int) -> BracketOrder:
+                           limit_price: float, take_profit_ticks: int, stop_loss_ticks: int,
+                           tick_multiplier: float) -> BracketOrder:
         """
         Internally creates and maps a new bracket order
 
@@ -83,10 +84,12 @@ class StatusManager:
         :param limit_price: (float) Upper/Lower limit for a Buy/Sell to fill the parent at
         :param take_profit_ticks: (int) Number of ticks from limit price to set Take Profit Limit Price
         :param stop_loss_ticks: (int) Number of ticks from limit price to set Stop Loss Trigger Price
+        :param tick_multiplier: (float) minimum move for this security
         :return: (BracketOrder) the created Bracket Order
         """
         order = BracketOrder(
-            order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks
+            order_id, security_code, exchange_code, quantity, is_buy, limit_price, take_profit_ticks, stop_loss_ticks,
+            tick_multiplier,
         )
         self._add_new_order(order)
         return order
@@ -146,7 +149,7 @@ class StatusManager:
             else:
                 logger.info('Unprocessed Report Type: {0}\n\r{1}'.format(report_type, data))
         except Exception as e:
-            raise(e)
+            raise (e)
 
     def _process_rithmic_update(self, data: dict) -> None:
         """
