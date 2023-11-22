@@ -409,6 +409,7 @@ class BracketOrder(LimitOrder):
         self.stop_loss_ticks = stop_loss_ticks
         multiplier = -1 if self.is_buy else 1
         self.stop_loss_trigger_price = limit_price + (stop_loss_ticks * multiplier * tick_multiplier)
+        self.take_profit_limit_price = limit_price - (take_profit_ticks * multiplier * tick_multiplier)
         self.take_profit_orders: List[TakeProfitOrder] = []
         self.stop_loss_orders: List[StopLossOrder] = []
         self.tick_multiplier = tick_multiplier
@@ -416,6 +417,10 @@ class BracketOrder(LimitOrder):
         self.all_stops_modified = False
         self.all_stops_modified_count = 0
         self.all_stops_modified_history = dict()
+
+        self.all_take_profit_modified = False
+        self.all_take_profit_modified_count = 0
+        self.all_take_profit_modified_history = dict()
 
     def _add_take_profit_order(self, order: TakeProfitOrder) -> None:
         """
@@ -614,10 +619,8 @@ class BracketOrder(LimitOrder):
     def update_stop_loss_trigger_price(self, trigger_price: float):
         self.stop_loss_trigger_price = trigger_price
 
-    @property
-    def take_profit_limit_price(self):
-        ticks = self.take_profit_ticks if self.is_buy else self.take_profit_ticks * -1
-        return self.limit_price + (ticks * self.tick_multiplier)
+    def update_take_profit_limit_price(self, limit_price: float):
+        self.take_profit_limit_price = limit_price
 
 
 VALID_ORDER_TYPES = Union[MarketOrder, LimitOrder, BracketOrder, StopLossOrder, TakeProfitOrder]
