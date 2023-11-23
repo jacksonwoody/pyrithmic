@@ -760,8 +760,12 @@ class RithmicOrderApi(RithmicBaseApi):
         :return: None
         """
         parent_order = self.status_manager._get_order_by_order_id(order_id)
+        current_take_profit = parent_order.take_profit_limit_price
         assert isinstance(parent_order, BracketOrder)
+        next_modified_count = parent_order.all_take_profit_modified_count + 1
+        modify_map = dict()
         for take_profit_order in parent_order.take_profit_orders:
+            modify_map[take_profit_order.order_id] = take_profit_order.modify_count + 1
             asyncio.run_coroutine_threadsafe(
                 self._send_limit_order_amendment(
                     take_profit_order.basket_id, take_profit_order.security_code, take_profit_order.exchange_code,
@@ -769,3 +773,13 @@ class RithmicOrderApi(RithmicBaseApi):
                 ),
                 loop=self.loop,
             )
+        complete = False
+        while not complete:
+            if all([tp.modify_count == modify_map[tp.order_id] for tp in parent_order.take_profit_orders]):
+                complete = True
+                parent_order.all_take_profit_modified_count = next_modified_count
+                parent_order.all_take_profit_modified = True
+        parent_order.update_take_profit_limit_price(limit_price)
+        parent_order.all_take_profit_modified_history[next_modified_count] = dict(
+            modified_at=get_utc_now(), new_take_profit=limit_price, old_take_profit=current_take_profit
+        )
