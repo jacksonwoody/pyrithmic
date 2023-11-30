@@ -113,7 +113,6 @@ class RithmicBaseApi(metaclass=ABCMeta):
         await self.ws.send(message)
 
     async def recv_buffer(self):
-        message = bytearray()
         message = await self.ws.recv()
         self.recv_messages.append(message)
         return message

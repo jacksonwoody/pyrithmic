@@ -36,6 +36,7 @@ class DownloadRequest:
             raise ValueError('Both Start Time and End Time must be TZ Aware and in UTC')
         self.security_code = security_code
         self.exchange_code = exchange_code
+        self._downloading_row_count = 0
         self.start_time = start_time
         self.end_time = end_time
         self.download_results = []
@@ -57,7 +58,9 @@ class DownloadRequest:
     @property
     def download_row_count(self) -> int:
         """Get row count of ticks downloaded"""
-        return len(self.tick_dataframe)
+        if self.complete:
+            return len(self.tick_dataframe)
+        return self._downloading_row_count
 
     @property
     def download_in_progress(self) -> bool:
@@ -325,6 +328,7 @@ class RithmicHistoryApi(RithmicBaseApi):
             df_final = df[:]
             complete = True
         download.download_results.append(df_final)
+        download._downloading_row_count += len(df_final)
         if complete:
             download._create_tick_dataframe()
         if intermittent_cb is not None:

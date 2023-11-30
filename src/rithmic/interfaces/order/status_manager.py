@@ -210,8 +210,13 @@ class StatusManager:
         is_buy = data['transaction_type'] == 1
         basket_id = data['basket_id']
         order = self._get_order_by_basket_id(basket_id)
+        parent_order_id = None
+        if isinstance(order, (TakeProfitOrder, StopLossOrder)):
+            parent_order_id = order.parent_order_id
+        if isinstance(order, BracketOrder):
+            parent_order_id = order.order_id
         fill = dict(
-            timestamp=data['update_time'], order_id=order.order_id,
+            timestamp=data['update_time'], order_id=order.order_id, parent_order_id=parent_order_id,
             security_code=data['symbol'], exchange_code=data['exchange'],
             is_buy=is_buy, quantity=data['fill_size'], price=data['fill_price'], fill_id=data['fill_id']
         )
