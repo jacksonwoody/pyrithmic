@@ -24,6 +24,11 @@ class StatusManager:
         self.callback_manager = None
         self.add_callback_manager(callback_manager)
 
+    def __getstate__(self):
+        state_map = self.__dict__.copy()
+        del state_map['callback_manager']
+        return state_map
+
     def add_callback_manager(self, callback_manager: Union[CallbackManager, None]):
         self.callback_manager = callback_manager if callback_manager is not None else CallbackManager()
 
@@ -238,7 +243,8 @@ class StatusManager:
         order = self._get_order_by_basket_id(basket_id)
         cancelled_id = data['cancelled_id']
         timestamp = data['update_time']
-        order._cancel_order(timestamp, cancelled_id)
+        cancelled_qty = order.unfilled_quantity
+        order._cancel_order(timestamp, cancelled_id, cancelled_qty)
         self.cancelled_orders.append(order.order_id)
 
     def _process_order_modify_report(self, data: dict) -> None:
@@ -267,3 +273,15 @@ class StatusManager:
     def order_id_basket_id_map(self) -> dict:
         """Returns dict mapping of User Order ID to Rithmic Basket ID"""
         return {order_id: order.basket_id for order_id, order in self.orders.items() if order.basket_id is not None}
+
+    def __eq__(self, other):
+        assert self.child_parent_map == other.child_parent_map
+        assert self.cancelled_orders == other.cancelled_orders
+        for k, order in self.orders.items():
+            try:
+                other_order = other.orders[k]
+                assert order == other_order
+            except AssertionError as e:
+                x = 1
+        assert self.fill_data == other.fill_data
+        return True

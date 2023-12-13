@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import pickle
 import time
 from datetime import datetime as dt
+from pathlib import Path
 from typing import Union
 
 import pandas as pd
@@ -53,7 +55,7 @@ class RithmicOrderApi(RithmicBaseApi):
     infra_type = request_login_pb2.RequestLogin.SysInfraType.ORDER_PLANT
 
     def __init__(self, env: RithmicEnvironment = None, callback_manager: CallbackManager = None, loop=None,
-                 auto_connect: bool = True):
+                 auto_connect: bool = True, recovered_status_manager: StatusManager = None):
         """
         Rithmic Order API init method
 
@@ -63,7 +65,8 @@ class RithmicOrderApi(RithmicBaseApi):
         :param callback_manager: (CallbackManager) provide a configured manager with callbacks registered
         :param loop: (AbstractEventLoop) asyncio event loop can be provided to share/use existing loop
         """
-        self.status_manager = StatusManager(callback_manager)
+        self.status_manager: Union[StatusManager, None] = None
+        self.add_status_manager(callback_manager, recovered_status_manager)
         self.have_trading_config = False
         self.subscribed_for_updates = False
         self._consuming_updates = False
@@ -75,6 +78,14 @@ class RithmicOrderApi(RithmicBaseApi):
         RithmicBaseApi.__init__(self, env=env, callback_manager=callback_manager, loop=loop, auto_connect=auto_connect)
         self.rithmic_updates_data = []
         self.exchange_updates_data = []
+
+    def add_status_manager(self, callback_manager: CallbackManager = None,
+                           recovered_status_manager: StatusManager = None):
+        if recovered_status_manager is None:
+            self.status_manager = StatusManager(callback_manager)
+        else:
+            recovered_status_manager.add_callback_manager(callback_manager)
+            self.status_manager = recovered_status_manager
 
     def _set_log_in_details(self, details: dict) -> None:
         """
@@ -549,7 +560,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param order_id: (str) valid order id
         :return: None
         """
-        order = self.status_manager._get_order_by_order_id(order_id)
+        order = self.get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(self._send_cancel_order(order.basket_id), loop=self.loop)
 
     def submit_cancel_bracket_order_all_children(self, order_id: str) -> None:
@@ -559,7 +570,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param order_id: (str) order id of the parent order
         :return:
         """
-        parent_order = self.status_manager._get_order_by_order_id(order_id)
+        parent_order = self.get_order_by_order_id(order_id)
         for order in parent_order.stop_loss_orders:
             asyncio.run_coroutine_threadsafe(self._send_cancel_order(order.basket_id), loop=self.loop)
 
@@ -662,7 +673,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param new_stop_ticks: (int) new stop ticks
         :return:
         """
-        order = self.status_manager._get_order_by_order_id(order_id)
+        order = self.get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(
             self._send_bracket_order_stop_amendment(order.basket_id, old_stop_ticks, new_stop_ticks), loop=self.loop,
         )
@@ -694,7 +705,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param stop_loss: (float) new trigger price
         :return: None
         """
-        order = self.status_manager._get_order_by_order_id(order_id)
+        order = self.get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(
             self._send_stop_loss_order_amendment(order.basket_id, security_code, exchange_code, quantity, stop_loss),
             loop=self.loop,
@@ -712,7 +723,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param limit_price: (float) new limit price
         :return: None
         """
-        order = self.status_manager._get_order_by_order_id(order_id)
+        order = self.get_order_by_order_id(order_id)
         asyncio.run_coroutine_threadsafe(
             self._send_limit_order_amendment(order.basket_id, security_code, exchange_code, quantity, limit_price),
             loop=self.loop,
@@ -726,7 +737,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param stop_loss: (float) new stop loss trigger price
         :return: None
         """
-        parent_order = self.status_manager._get_order_by_order_id(order_id)
+        parent_order = self.get_order_by_order_id(order_id)
         current_stop_loss = parent_order.stop_loss_trigger_price
         assert isinstance(parent_order, BracketOrder)
         next_modified_count = parent_order.all_stops_modified_count + 1
@@ -759,7 +770,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param limit_price: (float) new limit price
         :return: None
         """
-        parent_order = self.status_manager._get_order_by_order_id(order_id)
+        parent_order = self.get_order_by_order_id(order_id)
         current_take_profit = parent_order.take_profit_limit_price
         assert isinstance(parent_order, BracketOrder)
         next_modified_count = parent_order.all_take_profit_modified_count + 1
@@ -784,6 +795,14 @@ class RithmicOrderApi(RithmicBaseApi):
             modified_at=get_utc_now(), new_take_profit=limit_price, old_take_profit=current_take_profit
         )
 
+    def get_order_by_order_id(self, order_id: str) -> VALID_ORDER_TYPES:
+        return self.status_manager._get_order_by_order_id(order_id)
+
     def add_callback_manager(self, callback_manager: Union[CallbackManager, None]):
         super(RithmicOrderApi, self).add_callback_manager(callback_manager)
         self.status_manager.add_callback_manager(callback_manager)
+
+    def save_status_manager_state(self, file_path: Path):
+        with open(file_path, 'wb') as fp:
+            state = self.status_manager
+            pickle.dump(state, fp)

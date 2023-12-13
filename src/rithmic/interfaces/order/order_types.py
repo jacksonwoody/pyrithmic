@@ -37,6 +37,12 @@ CHILD_TYPE_MAP = {
     4: ChildOrderType.STOP_LOSS,
 }
 
+BASE_EQUALITY = [
+    'creation_time', 'order_id', 'security_code', 'exchange_code', 'quantity', 'is_buy', 'basket_id', 'in_market',
+    'filled_quantity', 'fills', 'cancelled', 'cancelled_at', 'cancelled_id', 'cancelled_quantity', 'modified',
+    'modify_count', 'modify_history', 'rejected', 'rejected_at', 'rejected_reason',
+]
+
 
 class BaseOrder(metaclass=abc.ABCMeta):
     """
@@ -46,6 +52,8 @@ class BaseOrder(metaclass=abc.ABCMeta):
     can_modify = False
     can_cancel = True
     modify_field = None
+    _equality_checks = BASE_EQUALITY
+    _extra_checks = []
 
     def __init__(self, order_id: str, security_code: str, exchange_code: str, quantity: int, is_buy: bool):
         """
@@ -78,6 +86,17 @@ class BaseOrder(metaclass=abc.ABCMeta):
         self.rejected_at = None
         self.rejected_reason = None
 
+    def __eq__(self, other):
+        keys = self._equality_checks + self._extra_checks
+        for key in keys:
+            try:
+                val_a = getattr(self, key)
+                val_b = getattr(other, key)
+                assert val_a == val_b
+            except AssertionError:
+                return False
+        return True
+
     @property
     def have_initial_order_response(self):
         return self.in_market is True or self.rejected is True
@@ -102,7 +121,7 @@ class BaseOrder(metaclass=abc.ABCMeta):
         self.fills.append(fill_data)
         self.filled_quantity += fill_data['quantity']
 
-    def _cancel_order(self, timestamp: dt, cancelled_id: str) -> None:
+    def _cancel_order(self, timestamp: dt, cancelled_id: str, cancelled_qty: int) -> None:
         """
         Marks the order as cancelled with metadata as received from the Exchange
 
@@ -115,6 +134,7 @@ class BaseOrder(metaclass=abc.ABCMeta):
         self.cancelled = True
         self.cancelled_at = timestamp
         self.cancelled_id = cancelled_id
+        self.cancelled_quantity = cancelled_qty
 
     def _mark_order_rejected(self, timestamp: dt, rejected_reason: str) -> None:
         """Mark Order Rejected from Rithmic"""
@@ -301,6 +321,7 @@ class LimitOrder(BaseOrder):
     type = OrderType.LIMIT_ORDER
     can_modify = True
     modify_field = 'limit_price'
+    _extra_checks = ['limit_price']
 
     def __init__(self, order_id: str, security_code: str, exchange_code: str, quantity: int, is_buy: bool,
                  limit_price: float):
@@ -349,6 +370,7 @@ class StopLossOrder(BaseOrder):
     type = OrderType.STOP_LOSS_ORDER
     can_modify = True
     modify_field = 'trigger_price'
+    _extra_checks = ['trigger_price']
 
     def __init__(self, order_id: str, security_code: str, exchange_code: str, quantity: int, is_buy: bool,
                  trigger_price: float, parent_order_id: str):
@@ -384,6 +406,12 @@ class BracketOrder(LimitOrder):
     """
     type = OrderType.BRACKET_ORDER
     can_modify = False
+    _extra_checks = [
+        'tick_multiplier', 'take_profit_ticks', 'stop_loss_ticks', 'take_profit_limit_price', 'stop_loss_trigger_price',
+        'all_stops_modified', 'all_stops_modified_count', 'all_stops_modified_history', 'all_take_profit_modified',
+        'all_take_profit_modified_count', 'all_take_profit_modified_history',
+        'stop_loss_orders', 'take_profit_orders',
+    ]
 
     def __init__(self, order_id: str, security_code: str, exchange_code: str, quantity: int, is_buy: bool,
                  limit_price: float, take_profit_ticks: int, stop_loss_ticks: int, tick_multiplier: float):

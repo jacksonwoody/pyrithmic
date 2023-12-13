@@ -1,12 +1,15 @@
+import pickle
+import tempfile
 from datetime import datetime as dt
 import time
+from pathlib import Path
 
 import pandas as pd
 
 from rithmic import CallbackManager, CallbackId
 from rithmic.interfaces.order.order_types import FillStatus, ChildOrderType
 from rithmic.tools.general import get_utc_now
-
+from tests.integration.conftest import TEST_ENVIRONMENT, RithmicOrderApiTesting
 
 ES = 'ES'
 NQ = 'NQ'
@@ -413,3 +416,46 @@ def test_fill_bracket_order_children_created_and_cancelled_with_callback(order_a
     fills_calledback = fill_tracker.fills
 
     assert fills == fills_calledback
+
+
+def test_order_api_can_save_state_status_manager(order_api, ticker_api):
+    order_api.clear_existing_updates()
+    security_code = ticker_api.get_front_month_contract(ES, EXCHANGE_CODE)
+    es = ticker_api.stream_market_data(security_code, EXCHANGE_CODE)
+    while len(es.tick_dataframe) == 0:
+        time.sleep(0.1)
+    last_px = es.tick_dataframe.iloc[-1].close
+    ticker_api.stop_market_data_stream(security_code, EXCHANGE_CODE)
+    order_id = '{0}_sell_limit_cancel_order_test'.format(dt.now().strftime('%Y%m%d_%H%M%S'))
+    order = order_api.submit_limit_order(
+        order_id=order_id, security_code=security_code, exchange_code=EXCHANGE_CODE, quantity=1, is_buy=False,
+        limit_price=last_px + (0.25 * 10)
+    )
+    while order.in_market is False:
+        time.sleep(0.1)
+
+    assert order.in_market is True
+
+    assert order.fill_status == FillStatus.UNFILLED
+    order_id = order.order_id
+
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        file_path = Path(tmp_file.name)
+        order_api.save_status_manager_state(file_path)
+        tmp_file.flush()
+        with open(file_path, 'rb') as fp:
+            loaded_status = pickle.load(fp)
+
+    assert loaded_status == order_api.status_manager
+
+    order_api.disconnect_and_logout()
+    new_order_api = RithmicOrderApiTesting(
+        env=TEST_ENVIRONMENT, auto_connect=True, recovered_status_manager=loaded_status
+    )
+    old_limit_order = new_order_api.get_order_by_order_id(order_id)
+    new_order_api.submit_cancel_order(old_limit_order.order_id)
+    while old_limit_order.cancelled is False:
+        time.sleep(0.01)
+
+    assert old_limit_order.cancelled_quantity == 1
+    assert isinstance(old_limit_order.cancelled_id, str)
