@@ -3,8 +3,9 @@ import time
 
 import pandas as pd
 
+from rithmic import CallbackManager, CallbackId
 from rithmic.interfaces.order.order_types import FillStatus, ChildOrderType
-from rithmic.tools.general import dict_destructure, get_utc_now
+from rithmic.tools.general import get_utc_now
 
 
 ES = 'ES'
@@ -356,3 +357,59 @@ def test_reference_data(order_api, ticker_api):
     for k, v in expected.items():
         assert ref_data[k] == v
 
+
+def test_fill_bracket_order_children_created_and_cancelled_with_callback(order_api, ticker_api):
+    order_api.clear_existing_updates()
+
+    class FillTracker:
+        def __init__(self):
+            self.fills = []
+
+        def fill_callback(self, fill_data: dict):
+            self.fills.append(fill_data)
+
+    fill_tracker = FillTracker()
+
+    cbm = CallbackManager()
+    cbm.register_callback(CallbackId.ORDER_NEW_FILL_NOTIFICATION, fill_tracker.fill_callback)
+
+    order_api.add_callback_manager(cbm)
+
+    security_code = ticker_api.get_front_month_contract(ES, EXCHANGE_CODE)
+    exchange_code = 'CME'
+    es = ticker_api.stream_market_data(security_code, exchange_code)
+    while len(es.tick_dataframe) < 5:
+        time.sleep(0.1)
+    last_px = es.tick_dataframe.iloc[-1].close
+    limit_px = last_px + (0.25 * 1)
+    stop_loss_ticks = 10
+    take_profit_ticks = 10
+    ticker_api.stop_market_data_stream(security_code, exchange_code)
+    order_id = '{0}_bracket_order_legs_created_cancelled'.format(dt.now().strftime('%Y%m%d_%H%M%S'))
+    bracket_order = order_api.submit_bracket_order(
+        order_id=order_id, security_code=security_code, exchange_code=exchange_code, quantity=1, is_buy=True,
+        limit_price=limit_px, stop_loss_ticks=stop_loss_ticks, take_profit_ticks=take_profit_ticks,
+    )
+    while bracket_order.children_in_market is False:
+        time.sleep(0.01)
+
+    assert bracket_order.fill_status == FillStatus.FILLED
+    tp_orders, sl_orders = bracket_order.child_orders
+
+    for order in tp_orders + sl_orders:
+        assert order.fill_status == FillStatus.UNFILLED
+        assert order.in_market is True
+
+    now = get_utc_now()
+    order_api.submit_cancel_bracket_order_all_children(order_id)
+    while bracket_order.all_children_cancelled is False:
+        time.sleep(0.01)
+
+    for order in tp_orders + sl_orders:
+        time_diff = max(order.cancelled_at, now) - min(order.cancelled_at, now)
+        assert time_diff.seconds < 2
+
+    fills = bracket_order.fills
+    fills_calledback = fill_tracker.fills
+
+    assert fills == fills_calledback

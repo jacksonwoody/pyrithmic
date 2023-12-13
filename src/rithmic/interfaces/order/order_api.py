@@ -63,7 +63,7 @@ class RithmicOrderApi(RithmicBaseApi):
         :param callback_manager: (CallbackManager) provide a configured manager with callbacks registered
         :param loop: (AbstractEventLoop) asyncio event loop can be provided to share/use existing loop
         """
-        self.status_manager = StatusManager()
+        self.status_manager = StatusManager(callback_manager)
         self.have_trading_config = False
         self.subscribed_for_updates = False
         self._consuming_updates = False
@@ -783,3 +783,7 @@ class RithmicOrderApi(RithmicBaseApi):
         parent_order.all_take_profit_modified_history[next_modified_count] = dict(
             modified_at=get_utc_now(), new_take_profit=limit_price, old_take_profit=current_take_profit
         )
+
+    def add_callback_manager(self, callback_manager: Union[CallbackManager, None]):
+        super(RithmicOrderApi, self).add_callback_manager(callback_manager)
+        self.status_manager.add_callback_manager(callback_manager)

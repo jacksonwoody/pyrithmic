@@ -122,8 +122,8 @@ class RithmicBaseApi(metaclass=ABCMeta):
 
     def start_loop(self):
         self.loop = asyncio.new_event_loop()
-        thr = threading.Thread(target=self.loop.run_forever, daemon=True)
-        thr.start()
+        self.thr = threading.Thread(target=self.loop.run_forever, daemon=True)
+        self.thr.start()
 
     def get_template_id_from_message_buffer(self, msg_buf) -> int:
         msg_length = int.from_bytes(msg_buf[0:3], byteorder='big', signed=True)

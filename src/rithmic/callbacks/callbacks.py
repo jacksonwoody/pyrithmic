@@ -18,6 +18,14 @@ class CallbackId(enum.Enum):
     ORDER_EXCHANGE_NOTIFICATIONS = 352
     # Callback to process notifications that stream from the Exchange in ORDER plant
 
+    ORDER_NEW_FILL_NOTIFICATION = 904
+    # Callback processed by the Order API Status Manager when a new fill message is processed
+    # Takes single argument of fill_data dictionary with the following keys:
+    # dict_keys(
+    # ['timestamp', 'order_id', 'parent_order_id', 'security_code', 'exchange_code', 'is_buy', 'quantity',
+    # 'price', 'fill_id']
+    # )
+
     HISTORY_DOWNLOAD_INTERMITTENT_PROCESSING = 902
     # Callback for Replay Tick Data as intermittent 10,000 rows of data are processed, can process this data
     # Takes two arguments, DataFrame of tick data and DownloadRequest object for all metadata

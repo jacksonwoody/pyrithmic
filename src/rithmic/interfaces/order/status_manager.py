@@ -1,5 +1,6 @@
 from typing import Union
 
+from rithmic import CallbackManager, CallbackId
 from rithmic.interfaces.order.order_types import ChildOrderType, CHILD_TYPE_MAP, MarketOrder, LimitOrder, \
     TakeProfitOrder, StopLossOrder, BracketOrder, VALID_ORDER_TYPES
 from rithmic.tools.general import dict_destructure
@@ -12,14 +13,19 @@ class StatusManager:
     Status Manager is used internally only by the Order API to map orders and update order status as messages flow
     from the Exchange and Rithmic
     """
-    def __init__(self):
+    def __init__(self, callback_manager: CallbackManager = None):
         """
-        Init constructor takes no arguments, created by the Order API
+        Init constructor callback manager from Order API passed through for callbacks on status changes
         """
         self.child_parent_map = dict()
         self.cancelled_orders = []
         self.orders = dict()
         self.fill_data = []
+        self.callback_manager = None
+        self.add_callback_manager(callback_manager)
+
+    def add_callback_manager(self, callback_manager: Union[CallbackManager, None]):
+        self.callback_manager = callback_manager if callback_manager is not None else CallbackManager()
 
     def _add_new_order(self, order: VALID_ORDER_TYPES) -> None:
         """Checks uniqueness of order id across session and internally maps the order"""
@@ -206,7 +212,7 @@ class StatusManager:
                 self._map_child_order(parent_order, order, child_type, basket_id)
 
     def _process_order_fill_report(self, data: dict) -> None:
-        """Handles new fill messages, adds to status manager and the relevant order"""
+        """Handles new fill messages, adds to status manager and the relevant order, callback run if provided"""
         is_buy = data['transaction_type'] == 1
         basket_id = data['basket_id']
         order = self._get_order_by_basket_id(basket_id)
@@ -222,6 +228,9 @@ class StatusManager:
         )
         self.fill_data.append(fill)
         order._add_fill(fill)
+        callback = self.callback_manager.get_callback_by_callback_id(CallbackId.ORDER_NEW_FILL_NOTIFICATION)
+        if callback is not None:
+            callback(fill)
 
     def _process_order_cancel_report(self, data: dict) -> None:
         """Handles cancellation messages from the Exchange"""
