@@ -73,6 +73,7 @@ class BaseOrder(metaclass=abc.ABCMeta):
         self.is_buy = is_buy
         self.basket_id = None
         self.in_market = False
+        self.in_market_at = None
         self.filled_quantity = 0
         self.fills = []
         self.cancelled = False
@@ -101,7 +102,7 @@ class BaseOrder(metaclass=abc.ABCMeta):
     def have_initial_order_response(self):
         return self.in_market is True or self.rejected is True
 
-    def _add_basket_id(self, basket_id: str) -> None:
+    def _add_basket_id(self, basket_id: str, timestamp: dt) -> None:
         """
         Added once received from the Exchange; means the order is live in the market and flagged as such
 
@@ -110,6 +111,7 @@ class BaseOrder(metaclass=abc.ABCMeta):
         """
         self.basket_id = basket_id
         self.in_market = True
+        self.in_market_at = timestamp
 
     def _add_fill(self, fill_data: dict) -> None:
         """

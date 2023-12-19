@@ -1,3 +1,4 @@
+from datetime import datetime as dt
 from typing import Union
 
 from rithmic import CallbackManager, CallbackId
@@ -182,15 +183,15 @@ class StatusManager:
         order_id = data.get('order_id')
         if order_id is not None:
             order = self._get_order_by_order_id(order_id)
-            basket_id = data.get('basket_id')
-            order._add_basket_id(basket_id)
+            basket_id, update_time = data.get('basket_id'), data.get('update_time')
+            order._add_basket_id(basket_id, update_time)
         else:
             self._process_bracket_order_child(data)
 
     def _map_child_order(self, parent_order: BracketOrder, child_order: Union[TakeProfitOrder, StopLossOrder],
-                         child_order_type: ChildOrderType, basket_id: str) -> None:
+                         child_order_type: ChildOrderType, basket_id: str, timestamp: dt) -> None:
         """Maps a child order, adds Rithmic ID and maps to Parent Order"""
-        child_order._add_basket_id(basket_id)
+        child_order._add_basket_id(basket_id, timestamp)
         self.child_parent_map[child_order.order_id] = child_order.parent_order_id
         parent_order._add_child_order(child_order, child_order_type)
 
@@ -206,7 +207,7 @@ class StatusManager:
             assert parent_order_id in self.orders.keys()
             parent_order = self._get_order_by_order_id(parent_order_id)
             price_type = data['orig_price_type']
-            basket_id = data.get('basket_id')
+            basket_id, update_time = data.get('basket_id'), data.get('update_time')
             order = None
             child_type = self._get_child_type_from_price_type(price_type)
             if child_type == ChildOrderType.TAKE_PROFIT:
@@ -214,7 +215,7 @@ class StatusManager:
             elif child_type == ChildOrderType.STOP_LOSS:
                 order = self.add_stop_loss_order(data, parent_order)
             if order is not None:
-                self._map_child_order(parent_order, order, child_type, basket_id)
+                self._map_child_order(parent_order, order, child_type, basket_id, update_time)
 
     def _process_order_fill_report(self, data: dict) -> None:
         """Handles new fill messages, adds to status manager and the relevant order, callback run if provided"""

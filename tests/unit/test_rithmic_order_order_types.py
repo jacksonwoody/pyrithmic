@@ -21,16 +21,18 @@ def test_market_order():
     assert np.isnan(avg_px)
     assert avg_qty == 0
 
+    now = get_utc_now()
     assert o.basket_id is None
-    o._add_basket_id('abc')
+    o._add_basket_id('abc', now)
 
     assert o.basket_id == 'abc'
     assert o.in_market is True
+    assert o.in_market_at == now
     assert o.has_fills is False
     assert o.last_modification is None
 
     with pytest.raises(UncancellableOrderException):
-        o._cancel_order(get_utc_now(), 'cancel_123')
+        o._cancel_order(get_utc_now(), 'cancel_123', o.unfilled_quantity)
 
     with pytest.raises(UnmodifiableOrderException):
         o._modify_order(get_utc_now(), 'mod_123', 4000.)
@@ -66,11 +68,13 @@ def test_limit_order():
     assert np.isnan(avg_px)
     assert avg_qty == 0
 
+    now = get_utc_now()
     assert o.basket_id is None
-    o._add_basket_id('abc')
+    o._add_basket_id('abc', now)
 
     assert o.basket_id == 'abc'
     assert o.in_market is True
+    assert o.in_market_at == now
     assert o.has_fills is False
     assert o.last_modification is None
 
@@ -110,11 +114,13 @@ def test_take_profit_order():
     assert np.isnan(avg_px)
     assert avg_qty == 0
 
+    now = get_utc_now()
     assert o.basket_id is None
-    o._add_basket_id('abc')
+    o._add_basket_id('abc', now)
 
     assert o.basket_id == 'abc'
     assert o.in_market is True
+    assert o.in_market_at == now
     assert o.has_fills is False
     assert o.last_modification is None
 
@@ -124,7 +130,7 @@ def test_take_profit_order():
     assert o.modify_field == 'limit_price'
 
     assert o.cancelled is False
-    o._cancel_order(get_utc_now(), 'cancel_1')
+    o._cancel_order(get_utc_now(), 'cancel_1', o.unfilled_quantity)
     assert o.cancelled is True
 
 
@@ -139,11 +145,13 @@ def test_stop_loss_order():
     assert np.isnan(avg_px)
     assert avg_qty == 0
 
+    now = get_utc_now()
     assert o.basket_id is None
-    o._add_basket_id('abc')
+    o._add_basket_id('abc', now)
 
     assert o.basket_id == 'abc'
     assert o.in_market is True
+    assert o.in_market_at == now
     assert o.has_fills is False
     assert o.last_modification is None
 
@@ -154,7 +162,7 @@ def test_stop_loss_order():
     assert o.trigger_price == 4010.
 
     assert o.cancelled is False
-    o._cancel_order(get_utc_now(), 'cancel_1')
+    o._cancel_order(get_utc_now(), 'cancel_1', o.unfilled_quantity)
     assert o.cancelled is True
 
 
