@@ -12,6 +12,7 @@ from rithmic import RithmicEnvironment, CallbackManager, CallbackId
 from rithmic.interfaces.base import RithmicBaseApi
 from rithmic.protocol_buffers import request_login_pb2, request_tick_bar_replay_pb2, response_tick_bar_replay_pb2
 from rithmic.tools.general import set_index_no_name, is_datetime_utc
+from rithmic.tools.meta import ApiType
 from rithmic.tools.pyrithmic_exceptions import ReferenceDataUnavailableException, DownloadErrorException
 from rithmic.tools.pyrithmic_logger import logger, configure_logging
 
@@ -101,6 +102,7 @@ class RithmicHistoryApi(RithmicBaseApi):
     Rithmic History API For the HISTORY PLANT to download historical tick data for security/exchange combinations
     """
     infra_type = request_login_pb2.RequestLogin.SysInfraType.HISTORY_PLANT
+    api_type = ApiType.HISTORY
 
     def __init__(self, env: RithmicEnvironment = None, callback_manager: CallbackManager = None,
                  auto_connect: bool = True, loop=None):

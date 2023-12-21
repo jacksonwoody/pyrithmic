@@ -23,6 +23,7 @@ from rithmic.protocol_buffers import (
     request_modify_order_pb2, request_update_target_bracket_level_pb2,
 )
 from rithmic.tools.general import dict_destructure, get_utc_now
+from rithmic.tools.meta import ApiType
 from rithmic.tools.pyrithmic_exceptions import (
     NoValidTradingAccountException, NoValidTradeRouteException, NoTradingConfigException, WebsocketClosedException,
 )
@@ -53,6 +54,7 @@ class RithmicOrderApi(RithmicBaseApi):
     Rithmic Order API For the ORDER PLANT to submit orders, cancel orders, modify orders and receive fills
     """
     infra_type = request_login_pb2.RequestLogin.SysInfraType.ORDER_PLANT
+    api_type = ApiType.ORDER
 
     def __init__(self, env: RithmicEnvironment = None, callback_manager: CallbackManager = None, loop=None,
                  auto_connect: bool = True, recovered_status_manager: StatusManager = None):
@@ -108,6 +110,7 @@ class RithmicOrderApi(RithmicBaseApi):
         logged_in = super(RithmicOrderApi, self).connect_and_login()
         future = asyncio.run_coroutine_threadsafe(self._get_login_info(), loop=self.loop)
         log_in_details = future.result()
+        logger.info('Order API Extended Login Details => {0}'.format(log_in_details))
         self._set_log_in_details(log_in_details)
         self._run_update_subscription()
 

@@ -12,6 +12,7 @@ from rithmic.protocol_buffers import request_login_pb2, last_trade_pb2, request_
 from rithmic.protocol_buffers.last_trade_pb2 import LastTrade
 from rithmic.protocol_buffers.response_front_month_contract_pb2 import ResponseFrontMonthContract
 from rithmic.tools.general import dict_destructure, set_index_no_name
+from rithmic.tools.meta import ApiType
 from rithmic.tools.pyrithmic_exceptions import WebsocketClosedException, MissingCustomCallback
 from rithmic.tools.pyrithmic_logger import logger, configure_logging
 
@@ -113,6 +114,7 @@ class RithmicTickerApi(RithmicBaseApi):
     Rithmic Ticker API For the TICKER PLANT to stream live tick data
     """
     infra_type = request_login_pb2.RequestLogin.SysInfraType.TICKER_PLANT
+    api_type = ApiType.TICKER
 
     def __init__(self, env: RithmicEnvironment = None, callback_manager: CallbackManager = None,
                  auto_connect: bool = True, loop=None, periodic_sync_interval_seconds: float = 0.1):

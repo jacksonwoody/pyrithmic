@@ -20,6 +20,9 @@ class RithmicEnvironment(enum.Enum):
     RITHMIC_PAPER_TRADING = 'RITHMIC_PAPER_TRADING'
     RITHMIC_LIVE = 'RITHMIC_LIVE'
 
+    def __repr__(self):
+        return self.value
+
 
 def _get_config_file(environment: RithmicEnvironment):
     try:

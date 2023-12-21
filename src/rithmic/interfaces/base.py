@@ -37,11 +37,13 @@ def _setup_ssl_context():
 
 class RithmicBaseApi(metaclass=ABCMeta):
     infra_type = None
+    api_type = None
 
     def __init__(self, env: RithmicEnvironment = None, callback_manager: CallbackManager = None,
                  auto_connect: bool = True, loop: AbstractEventLoop = None):
         self.ws = None
         credentials = get_rithmic_credentials(env)
+        self.env = env
         self.uri = credentials['uri']
         self.user = credentials['user']
         self.pw = credentials['pw']
@@ -145,7 +147,11 @@ class RithmicBaseApi(metaclass=ABCMeta):
     def connect_and_login(self):
         ws = self._get_websocket_connection()
         self.ws = ws
-        return self._log_into_rithmic()
+        log_in_details = self._log_into_rithmic()
+        logger.info('Connected to {0} as User {1} on {2} ({3})'.format(
+            self.api_type, self.user, self.system_name, self.env
+        ))
+        return log_in_details
 
     def _get_websocket_connection(self):
         future = asyncio.run_coroutine_threadsafe(self.get_websocket_connection(), self.loop)
